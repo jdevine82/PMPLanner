@@ -1,0 +1,15 @@
+[Unit]
+Description=PMPlanner FastAPI Backend
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=pmplanner
+WorkingDirectory=/opt/pmplanner/backend
+EnvironmentFile=/opt/pmplanner/backend/.env
+ExecStart=/opt/pmplanner/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

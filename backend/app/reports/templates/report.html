@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    margin: 18mm 15mm;
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #6b7280; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #111; }
+
+  .page-header {
+    background: #1d4ed8;
+    color: white;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    border-radius: 4px;
+  }
+  .page-header h1 { font-size: 17px; font-weight: 700; margin-bottom: 3px; }
+  .page-header p  { font-size: 10px; opacity: 0.85; }
+
+  .section { margin-bottom: 22px; page-break-inside: avoid; }
+  .section-title {
+    background: #f3f4f6;
+    border-left: 4px solid #2563eb;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+    color: #1e40af;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+  thead th {
+    background: #e0e7ff;
+    color: #1e3a8a;
+    font-weight: 700;
+    text-align: left;
+    padding: 5px 7px;
+    border-bottom: 2px solid #93c5fd;
+  }
+  tbody tr:nth-child(even) { background: #f9fafb; }
+  tbody tr:hover { background: #eff6ff; }
+  td { padding: 4px 7px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+
+  .badge-refused   { color: #dc2626; font-weight: 700; }
+  .badge-completed { color: #15803d; font-weight: 600; }
+  .badge-approved  { color: #1d4ed8; }
+
+  .empty { text-align: center; color: #9ca3af; padding: 10px; font-style: italic; }
+
+  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; font-size: 10px; margin-bottom: 14px; }
+  .meta-grid .label { color: #6b7280; }
+  .meta-grid .value { font-weight: 600; }
+
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>{{ customer.company_name }}</h1>
+  <p>Preventative Maintenance Report &mdash; Generated {{ generated_date }} &mdash; Forecast horizon: {{ forecast_months }} months</p>
+</div>
+
+{% if customer.primary_contact or customer.phone or customer.email %}
+<div class="meta-grid" style="margin-bottom:16px;">
+  {% if customer.primary_contact %}<span class="label">Contact</span><span class="value">{{ customer.primary_contact }}</span>{% endif %}
+  {% if customer.phone %}<span class="label">Phone</span><span class="value">{{ customer.phone }}</span>{% endif %}
+  {% if customer.email %}<span class="label">Email</span><span class="value">{{ customer.email }}</span>{% endif %}
+</div>
+{% endif %}
+
+<!-- ── Section A: Asset Inventory ── -->
+<div class="section">
+  <div class="section-title">A &mdash; Asset Inventory Summary</div>
+  {% if asset_inventory %}
+  <table>
+    <thead><tr><th>Asset Name</th><th>Serial Number</th><th>Model Number</th><th>Location / Site</th></tr></thead>
+    <tbody>
+      {% for row in asset_inventory %}
+      <tr>
+        <td><strong>{{ row.asset_name }}</strong></td>
+        <td>{{ row.serial_number }}</td>
+        <td>{{ row.model_number }}</td>
+        <td>{{ row.location }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">No assets on record.</p>{% endif %}
+</div>
+
+<!-- ── Section B: Scheduling ── -->
+<div class="section">
+  <div class="section-title">B &mdash; Scheduling Intervals &amp; Settings</div>
+  {% if scheduling %}
+  <table>
+    <thead><tr><th>Asset</th><th>Service Template</th><th>Frequency</th><th>Est. Hours</th><th>Next Due</th><th>Last Done</th></tr></thead>
+    <tbody>
+      {% for row in scheduling %}
+      <tr>
+        <td><strong>{{ row.asset_name }}</strong></td>
+        <td>{{ row.service_title }}</td>
+        <td>{{ row.frequency }}</td>
+        <td>{{ "%.2f"|format(row.estimated_hours) }}h</td>
+        <td>{{ row.date_next_due }}</td>
+        <td>{{ row.date_last_done }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">No maintenance schedules configured.</p>{% endif %}
+</div>
+
+<!-- ── Section C: Service History ── -->
+<div class="section page-break">
+  <div class="section-title">C &mdash; Completed &amp; Refused Service History</div>
+  {% if history %}
+  <table>
+    <thead><tr><th>Month</th><th>Asset</th><th>Service</th><th>Status</th><th>Actual Hours</th><th>Notes / Refusal Reason</th></tr></thead>
+    <tbody>
+      {% for row in history %}
+      <tr>
+        <td>{{ row.month }}</td>
+        <td>{{ row.asset_name }}</td>
+        <td>{{ row.service_title }}</td>
+        <td>
+          {% if row.status == "Refused by Customer" %}
+            <span class="badge-refused">REFUSED</span>
+          {% elif row.sync_status == "Completed" %}
+            <span class="badge-completed">Completed</span>
+          {% else %}
+            <span class="badge-approved">{{ row.status }}</span>
+          {% endif %}
+        </td>
+        <td>{% if row.actual_hours %}{{ "%.2f"|format(row.actual_hours) }}h{% else %}—{% endif %}</td>
+        <td>{{ row.refusal_reason or "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">No service history found for this customer.</p>{% endif %}
+</div>
+
+<!-- ── Section D: Upcoming Forecast ── -->
+<div class="section">
+  <div class="section-title">D &mdash; Upcoming Maintenance Forecast (Next {{ forecast_months }} Months)</div>
+  {% if forecast %}
+  <table>
+    <thead><tr><th>Due Date</th><th>Asset</th><th>Service Template</th><th>Est. Hours</th></tr></thead>
+    <tbody>
+      {% for row in forecast %}
+      <tr>
+        <td><strong>{{ row.due_date }}</strong></td>
+        <td>{{ row.asset_name }}</td>
+        <td>{{ row.service_title }}</td>
+        <td>{{ "%.2f"|format(row.estimated_hours) }}h</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">No upcoming services within the forecast window.</p>{% endif %}
+</div>
+
+</body>
+</html>

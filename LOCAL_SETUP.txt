@@ -1,0 +1,112 @@
+========================================================
+  PM PLANNER — LOCAL DEVELOPMENT SETUP
+  Run these commands in your terminal in order.
+========================================================
+
+STEP 1 — Install PostgreSQL and uv (Python package manager)
+------------------------------------------------------------
+sudo apt-get install -y postgresql postgresql-contrib libpango-1.0-0 libpangocairo-1.0-0 libcairo2
+
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+source $HOME/.local/bin/env
+
+
+STEP 2 — Create the database
+------------------------------------------------------------
+sudo systemctl start postgresql
+
+sudo -u postgres psql -c "CREATE USER pmplanner WITH PASSWORD 'pmplanner_dev';"
+
+sudo -u postgres psql -c "CREATE DATABASE pmplanner OWNER pmplanner;"
+
+
+STEP 3 — Set up the Python virtual environment
+------------------------------------------------------------
+cd /home/jasond/Documents/PMPlanner/backend
+
+uv venv --python 3.12
+
+source .venv/bin/activate
+
+uv pip install -r requirements.txt
+
+NOTE: If you already ran this before the bcrypt fix, run:
+  uv pip install bcrypt==4.2.1
+  uv pip uninstall passlib
+
+
+STEP 4 — Create the .env config file
+------------------------------------------------------------
+cat > .env << 'EOF'
+DATABASE_URL=postgresql://pmplanner:pmplanner_dev@localhost:5432/pmplanner
+SECRET_KEY=local-dev-secret-key-change-in-prod
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+UPLOADS_DIR=../uploads
+EOF
+
+
+STEP 5 — Run database migrations
+------------------------------------------------------------
+alembic revision --autogenerate -m "initial schema"
+
+alembic upgrade head
+
+
+STEP 6 — Create the first admin user
+------------------------------------------------------------
+python3 - << 'EOF'
+from app.db.session import SessionLocal
+from app.crud.user import create
+from app.schemas.user import UserCreate
+db = SessionLocal()
+create(db, UserCreate(username="admin", password="admin123", user_role="Admin"))
+print("Done — admin / admin123")
+db.close()
+EOF
+
+
+STEP 7 — Start the backend (leave this terminal open)
+------------------------------------------------------------
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+
+STEP 8 — Open a NEW terminal tab and start the frontend
+------------------------------------------------------------
+cd /home/jasond/Documents/PMPlanner/frontend
+
+npm install
+
+npm run dev
+
+
+========================================================
+  OPEN IN BROWSER
+========================================================
+
+  App:      http://localhost:5173
+  API docs: http://localhost:8000/docs
+
+  Login:    admin / admin123
+
+
+========================================================
+  TROUBLESHOOTING
+========================================================
+
+If "uv" is not found after install:
+  source $HOME/.local/bin/env
+  (or close and reopen the terminal)
+
+If PostgreSQL fails to start:
+  sudo systemctl status postgresql
+
+If alembic cannot connect:
+  Check the .env file exists in the backend/ folder
+  and the DATABASE_URL matches the user/password above.
+
+If a port is already in use:
+  Backend:  uvicorn app.main:app --reload --port 8001
+  Frontend: edit frontend/vite.config.ts, change port: 5173
+
+========================================================
