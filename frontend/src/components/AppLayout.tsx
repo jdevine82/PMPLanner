@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, Settings, Wrench, LogOut, Building2, BarChart2, PlusCircle } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, Wrench, LogOut, Building2, BarChart2, PlusCircle, FolderOpen } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { NewProgramWizard } from './NewProgramWizard'
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
   { to: '/customers',  label: 'PM Schedules', icon: Building2 },
   { to: '/templates',  label: 'Services',   icon: FileText },
+  { to: '/projects',   label: 'Projects',   icon: FolderOpen },
   { to: '/reports',    label: 'Reports',    icon: BarChart2 },
   { to: '/settings',   label: 'Settings',   icon: Settings, adminOnly: true },
   { to: '/users',      label: 'Users',      icon: Users,    adminOnly: true },

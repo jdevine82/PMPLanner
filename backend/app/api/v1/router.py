@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     job_comments,
     job_instances,
     maintenance_schedules,
+    projects,
     reports,
     service_templates,
     servicem8,
@@ -32,4 +33,5 @@ api_router.include_router(job_comments.router,         prefix="/jobs",          
 api_router.include_router(app_settings.router,         prefix="/settings",        tags=["Settings"])
 api_router.include_router(servicem8.router,            prefix="/servicem8",       tags=["ServiceM8"])
 api_router.include_router(reports.router,              prefix="/reports",         tags=["Reports"])
+api_router.include_router(projects.router,             prefix="/projects",        tags=["Projects"])
 api_router.include_router(backup.router,               prefix="/backup",          tags=["Backup"])

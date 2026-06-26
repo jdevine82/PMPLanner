@@ -5,7 +5,8 @@ import { useDashboardRows, rowEstimatedHours } from '@/hooks/useDashboardRows'
 import { jobsApi } from '@/api/jobs'
 import { reportsApi } from '@/api/reports'
 import { servicem8Api } from '@/api/servicem8'
-import { JobGrid } from '@/components/JobGrid'
+import { projectsApi } from '@/api/projects'
+import { JobGrid, type ProjectRow } from '@/components/JobGrid'
 import { MissingMonthBanner } from '@/components/MissingMonthBanner'
 import { MonthPicker } from '@/components/MonthPicker'
 import { JobDetailDrawer } from '@/components/JobDetailDrawer'
@@ -97,6 +98,11 @@ export default function DashboardPage() {
     queryFn: async () => (await apiClient.get('/settings')).data,
   })
 
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => projectsApi.list(),
+  })
+
   const stats = useMemo(() => ({
     total:    rows.length,
     approved: rows.filter((r) => r.job.approval_status === 'Approved').length,
@@ -105,9 +111,20 @@ export default function DashboardPage() {
   }), [rows])
 
   const capacityHours = settings?.monthly_capacity_hours ?? 0
+
+  const activeProjectRows = useMemo<ProjectRow[]>(
+    () => projects
+      .filter((p) => (p.month_hours[month] ?? 0) > 0)
+      .map((p) => ({ id: p.id, name: p.name, description: p.description, hours: p.month_hours[month] })),
+    [projects, month],
+  )
   const estimatedHours = useMemo(
-    () => rows.reduce((sum, r) => sum + rowEstimatedHours(r), 0),
-    [rows],
+    () => {
+      const scheduleHours = rows.reduce((sum, r) => sum + rowEstimatedHours(r), 0)
+      const projectHours = projects.reduce((sum, p) => sum + (p.month_hours[month] ?? 0), 0)
+      return scheduleHours + projectHours
+    },
+    [rows, projects, month],
   )
   const capacityPct = capacityHours > 0 ? Math.min((estimatedHours / capacityHours) * 100, 100) : 0
   const capacityColor =
@@ -187,6 +204,7 @@ export default function DashboardPage() {
           commentCounts={commentCounts}
           onOpenDetail={setActiveDetailRow}
           onDeleteJob={isWorker ? undefined : (ids) => deleteMutation.mutate(ids)}
+          projectRows={activeProjectRows}
         />
       )}
 

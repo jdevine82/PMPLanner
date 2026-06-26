@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { schedulesApi } from '@/api/schedules'
+import { projectsApi } from '@/api/projects'
 import { apiClient } from '@/api/client'
-import type { AppSetting, MaintenanceSchedule } from '@/types'
+import type { AppSetting, MaintenanceSchedule, Project } from '@/types'
 
 export interface ForecastMonth {
   key: string
@@ -64,10 +65,25 @@ function projectHours(schedules: MaintenanceSchedule[], monthKeys: string[]): Re
   return totals
 }
 
+function sumProjectHours(projects: Project[], monthKeys: string[]): Record<string, number> {
+  const totals: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]))
+  for (const project of projects) {
+    for (const [key, hours] of Object.entries(project.month_hours)) {
+      if (key in totals) totals[key] += hours
+    }
+  }
+  return totals
+}
+
 export function useWorkloadForecast() {
   const { data: schedules = [] } = useQuery({
     queryKey: ['schedules'],
     queryFn: () => schedulesApi.list(),
+  })
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => projectsApi.list(),
   })
 
   const { data: settings } = useQuery<AppSetting>({
@@ -79,9 +95,14 @@ export function useWorkloadForecast() {
 
   const months = useMemo(() => {
     const base = buildMonthKeys()
-    const totals = projectHours(schedules, base.map((m) => m.key))
-    return base.map((m) => ({ ...m, hours: totals[m.key] ?? 0 }))
-  }, [schedules])
+    const keys = base.map((m) => m.key)
+    const scheduleTotals = projectHours(schedules, keys)
+    const projectTotals = sumProjectHours(projects, keys)
+    return base.map((m) => ({
+      ...m,
+      hours: (scheduleTotals[m.key] ?? 0) + (projectTotals[m.key] ?? 0),
+    }))
+  }, [schedules, projects])
 
   return { months, capacityHours }
 }

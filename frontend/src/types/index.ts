@@ -141,6 +141,26 @@ export interface AppSetting {
   last_successful_sync_timestamp: string
 }
 
+export interface Project {
+  id: number
+  name: string
+  description: string | null
+  month_hours: Record<string, number>
+  created_at: string
+}
+
+export interface ProjectCreate {
+  name: string
+  description?: string | null
+  month_hours: Record<string, number>
+}
+
+export interface ProjectUpdate {
+  name?: string
+  description?: string | null
+  month_hours?: Record<string, number>
+}
+
 // Enriched row for the dashboard grid
 export interface DashboardRow {
   job: JobInstance

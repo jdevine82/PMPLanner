@@ -10,6 +10,7 @@ import TemplatesPage from '@/pages/TemplatesPage'
 import ReportPage from '@/pages/ReportPage'
 import SettingsPage from '@/pages/SettingsPage'
 import UsersPage from '@/pages/UsersPage'
+import ProjectsPage from '@/pages/ProjectsPage'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
               <Route path="customers" element={<CustomersPage />} />
               <Route path="templates" element={<TemplatesPage />} />
               <Route path="reports" element={<ReportPage />} />
+              <Route path="projects" element={<ProjectsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="users" element={<UsersPage />} />
             </Route>
