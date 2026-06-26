@@ -38,4 +38,9 @@ export const jobsApi = {
     const { data } = await apiClient.post<JobComment>(`/jobs/${jobId}/comments`, { comment_text })
     return data
   },
+
+  commentCounts: async (month: string): Promise<Record<number, number>> => {
+    const { data } = await apiClient.get<Record<number, number>>('/jobs/comment-counts', { params: { month } })
+    return data
+  },
 }

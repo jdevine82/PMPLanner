@@ -15,8 +15,27 @@ def get_all(db: Session) -> list[ServiceTemplate]:
     return db.query(ServiceTemplate).order_by(ServiceTemplate.title).all()
 
 
-def create(db: Session, title: str, parsed_text: str, filename: str) -> ServiceTemplate:
-    obj = ServiceTemplate(title=title, parsed_document_text=parsed_text, original_filename=filename)
+def create(
+    db: Session,
+    title: str,
+    parsed_text: str,
+    filename: str | None,
+    interval_months: int | None = None,
+    job_description: str | None = None,
+    work_completed: str | None = None,
+    attachments: list | None = None,
+    job_badges: list | None = None,
+) -> ServiceTemplate:
+    obj = ServiceTemplate(
+        title=title,
+        parsed_document_text=parsed_text,
+        original_filename=filename,
+        interval_months=interval_months,
+        job_description=job_description,
+        work_completed=work_completed,
+        attachments=attachments,
+        job_badges=job_badges,
+    )
     db.add(obj)
     db.commit()
     db.refresh(obj)

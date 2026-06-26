@@ -21,16 +21,28 @@ export function ReportPreview({ data }: Props) {
     <div className="bg-white rounded-lg border border-gray-200 p-8 text-sm font-[Arial,sans-serif] print:p-0 print:border-0 print:rounded-none max-w-4xl mx-auto">
 
       {/* Header */}
-      <div className="rounded-lg bg-blue-700 text-white px-6 py-5 mb-6">
-        <h1 className="text-xl font-bold">{data.customer.company_name}</h1>
-        <p className="text-sm text-blue-200 mt-1">
-          Preventative Maintenance Report — Generated {data.generated_date} — {data.forecast_months}-month forecast
-        </p>
-        {(data.customer.primary_contact || data.customer.phone) && (
-          <p className="text-xs text-blue-300 mt-1">
-            {[data.customer.primary_contact, data.customer.phone, data.customer.email].filter(Boolean).join(' · ')}
-          </p>
+      <div className="rounded-lg bg-blue-700 text-white px-6 py-5 mb-6 flex items-center gap-5">
+        {data.branding.logo_data_uri && (
+          <img
+            src={data.branding.logo_data_uri}
+            alt="Logo"
+            className="max-h-14 max-w-[120px] object-contain bg-white rounded p-1 shrink-0"
+          />
         )}
+        <div>
+          {data.branding.business_name && (
+            <p className="text-xs text-blue-300 mb-0.5">{data.branding.business_name}</p>
+          )}
+          <h1 className="text-xl font-bold">{data.customer.company_name}</h1>
+          <p className="text-sm text-blue-200 mt-1">
+            Preventative Maintenance Report — Generated {data.generated_date} — {data.forecast_months}-month forecast
+          </p>
+          {(data.customer.primary_contact || data.customer.phone) && (
+            <p className="text-xs text-blue-300 mt-1">
+              {[data.customer.primary_contact, data.customer.phone, data.customer.email].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Section A */}
@@ -61,7 +73,7 @@ export function ReportPreview({ data }: Props) {
         <SectionTitle label="B — Scheduling Intervals & Settings" />
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-blue-50 text-blue-900">
-            {['Asset', 'Service Template', 'Frequency', 'Est. Hours', 'Next Due', 'Last Done'].map((h) => (
+            {['Asset', 'Service', 'Frequency', 'Est. Hours', 'Next Due', 'Last Done'].map((h) => (
               <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
             ))}
           </tr></thead>
@@ -116,7 +128,7 @@ export function ReportPreview({ data }: Props) {
         <SectionTitle label={`D — Upcoming Forecast (Next ${data.forecast_months} Months)`} />
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-blue-50 text-blue-900">
-            {['Due Date', 'Asset', 'Service Template', 'Est. Hours'].map((h) => (
+            {['Due Date', 'Asset', 'Service', 'Est. Hours'].map((h) => (
               <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
             ))}
           </tr></thead>

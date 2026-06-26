@@ -1,12 +1,14 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Users, FileText, Settings, Wrench, LogOut, Building2, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, Settings, Wrench, LogOut, Building2, BarChart2, PlusCircle } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
+import { NewProgramWizard } from './NewProgramWizard'
 
 const navItems = [
   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
   { to: '/customers',  label: 'Customers',  icon: Building2 },
-  { to: '/templates',  label: 'Templates',  icon: FileText },
+  { to: '/templates',  label: 'Services',   icon: FileText },
   { to: '/reports',    label: 'Reports',    icon: BarChart2 },
   { to: '/settings',   label: 'Settings',   icon: Settings, adminOnly: true },
   { to: '/users',      label: 'Users',      icon: Users,    adminOnly: true },
@@ -14,6 +16,7 @@ const navItems = [
 
 export function AppLayout() {
   const { user, logout } = useAuth()
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
@@ -25,6 +28,16 @@ export function AppLayout() {
         </div>
 
         <nav className="flex-1 space-y-0.5 px-2 py-3">
+          {user?.user_role !== 'Worker' && (
+            <button
+              onClick={() => setWizardOpen(true)}
+              className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-500 mb-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              New PM Program
+            </button>
+          )}
+
           {navItems
             .filter((item) => !item.adminOnly || user?.user_role === 'Admin')
             .map(({ to, label, icon: Icon }) => (
@@ -36,7 +49,7 @@ export function AppLayout() {
                   cn(
                     'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     isActive
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-gray-700 text-white'
                       : 'text-gray-300 hover:bg-gray-800 hover:text-white',
                   )
                 }
@@ -46,6 +59,8 @@ export function AppLayout() {
               </NavLink>
             ))}
         </nav>
+
+        <NewProgramWizard open={wizardOpen} onOpenChange={setWizardOpen} />
 
         <div className="border-t border-gray-700 p-3">
           <div className="mb-2 px-2 text-xs text-gray-400">

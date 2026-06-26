@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.deps import get_current_user, get_db, require_admin
+from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import service_template as crud
-from app.schemas.service_template import ServiceTemplateOut, ServiceTemplateUpdate
+from app.schemas.service_template import ServiceTemplateOut, ServiceTemplateUpdate, ServiceTemplateManualCreate
 
 router = APIRouter()
 
@@ -39,7 +39,7 @@ def create_template(
     title: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    _=Depends(require_staff),
 ):
     if not file.filename.endswith(".docx"):
         raise HTTPException(400, "Only .docx files are accepted")
@@ -47,6 +47,22 @@ def create_template(
     parsed_text = _parse_docx(file_bytes)
     filename = _save_file(file_bytes, file.filename)
     return crud.create(db, title, parsed_text, filename)
+
+
+@router.post("/manual", response_model=ServiceTemplateOut, status_code=201)
+def create_template_manual(
+    data: ServiceTemplateManualCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_staff),
+):
+    return crud.create(
+        db, data.title, data.content, None,
+        interval_months=data.interval_months,
+        job_description=data.job_description,
+        work_completed=data.work_completed,
+        attachments=data.attachments,
+        job_badges=data.job_badges,
+    )
 
 
 @router.get("/{template_id}", response_model=ServiceTemplateOut)
@@ -59,7 +75,7 @@ def get_template(template_id: int, db: Session = Depends(get_db), _=Depends(get_
 
 @router.patch("/{template_id}", response_model=ServiceTemplateOut)
 def update_template(
-    template_id: int, data: ServiceTemplateUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    template_id: int, data: ServiceTemplateUpdate, db: Session = Depends(get_db), _=Depends(require_staff)
 ):
     obj = crud.get(db, template_id)
     if not obj:
@@ -72,7 +88,7 @@ def replace_document(
     template_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _=Depends(get_current_user),
+    _=Depends(require_staff),
 ):
     obj = crud.get(db, template_id)
     if not obj:

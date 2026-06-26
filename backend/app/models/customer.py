@@ -17,5 +17,6 @@ class Customer(Base):
     primary_contact: Mapped[str | None] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(50))
     email: Mapped[str | None] = mapped_column(String(255))
+    servicem8_uuid: Mapped[str | None] = mapped_column(String(255), unique=True)
 
     sites: Mapped[list["Site"]] = relationship(back_populates="customer", cascade="all, delete-orphan")

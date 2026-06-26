@@ -2,8 +2,11 @@ import { apiClient } from './client'
 import type { Customer } from '@/types'
 
 export const customersApi = {
-  list: async (search?: string): Promise<Customer[]> => {
-    const { data } = await apiClient.get<Customer[]>('/customers', { params: search ? { search } : {} })
+  list: async (search?: string, hasSchedules?: boolean): Promise<Customer[]> => {
+    const params: Record<string, unknown> = {}
+    if (search) params.search = search
+    if (hasSchedules) params.has_schedules = true
+    const { data } = await apiClient.get<Customer[]>('/customers', { params })
     return data
   },
 

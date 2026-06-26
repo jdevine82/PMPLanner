@@ -61,9 +61,15 @@
 </head>
 <body>
 
-<div class="page-header">
-  <h1>{{ customer.company_name }}</h1>
-  <p>Preventative Maintenance Report &mdash; Generated {{ generated_date }} &mdash; Forecast horizon: {{ forecast_months }} months</p>
+<div class="page-header" style="display:flex; align-items:center; gap:16px;">
+  {% if branding.logo_data_uri %}
+  <img src="{{ branding.logo_data_uri }}" alt="Logo" style="max-height:52px; max-width:120px; object-fit:contain; background:white; border-radius:3px; padding:3px;" />
+  {% endif %}
+  <div>
+    {% if branding.business_name %}<p style="font-size:11px; opacity:0.75; margin-bottom:2px;">{{ branding.business_name }}</p>{% endif %}
+    <h1>{{ customer.company_name }}</h1>
+    <p>Preventative Maintenance Report &mdash; Generated {{ generated_date }} &mdash; Forecast horizon: {{ forecast_months }} months</p>
+  </div>
 </div>
 
 {% if customer.primary_contact or customer.phone or customer.email %}

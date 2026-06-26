@@ -22,9 +22,17 @@ export function MonthPicker({ value, onChange }: Props) {
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <span className="min-w-36 text-center text-sm font-semibold text-gray-800">
-        {formatMonthYear(value)}
-      </span>
+
+      {/* Native month input — allows jumping to any month */}
+      <input
+        type="month"
+        value={value}
+        onChange={(e) => e.target.value && onChange(e.target.value)}
+        className="rounded border border-gray-200 bg-white px-2 py-0.5 text-sm font-semibold text-gray-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
+        style={{ minWidth: '10rem' }}
+        title={formatMonthYear(value)}
+      />
+
       <button
         onClick={() => onChange(offset(value, 1))}
         className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"

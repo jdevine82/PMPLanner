@@ -1,7 +1,7 @@
 export interface User {
   id: number
   username: string
-  user_role: 'Admin' | 'Staff'
+  user_role: 'Admin' | 'Staff' | 'Worker'
   created_at: string
 }
 
@@ -11,6 +11,7 @@ export interface Customer {
   primary_contact: string | null
   phone: string | null
   email: string | null
+  servicem8_uuid: string | null
 }
 
 export interface Site {
@@ -25,11 +26,22 @@ export interface Site {
 export interface Asset {
   id: number
   site_id: number
-  servicem8_asset_uuid: string
+  servicem8_asset_uuid: string | null
   asset_name: string
   serial_number: string | null
   model_number: string | null
   created_at: string
+}
+
+export interface TemplateAttachment {
+  label: string
+  url: string
+}
+
+export interface SM8Badge {
+  uuid: string
+  name: string
+  file_name: string
 }
 
 export interface ServiceTemplate {
@@ -37,7 +49,12 @@ export interface ServiceTemplate {
   title: string
   parsed_document_text: string
   original_filename: string | null
+  interval_months: number | null
   historical_average_labor_hours: number
+  job_description: string | null
+  work_completed: string | null
+  attachments: TemplateAttachment[] | null
+  job_badges: SM8Badge[] | null
 }
 
 export interface MaintenanceSchedule {
@@ -49,6 +66,7 @@ export interface MaintenanceSchedule {
   date_last_done: string | null
   date_next_due: string
   permanent_custom_instructions: string | null
+  sm8_group_tag: string | null
   created_at: string
 }
 
@@ -89,6 +107,9 @@ export interface AppSetting {
   servicem8_api_key: string
   file_storage_path: string
   generation_buffer_days: number
+  monthly_capacity_hours: number
+  business_name: string | null
+  logo_filename: string | null
   last_successful_sync_timestamp: string
 }
 
@@ -100,4 +121,6 @@ export interface DashboardRow {
   site: Site
   customer: Customer
   template: ServiceTemplate
+  // Present when multiple assets share an sm8_group_tag — includes ALL rows in the group (including self)
+  groupedRows?: DashboardRow[]
 }

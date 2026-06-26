@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    margin: 15mm 12mm;
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #6b7280; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #111; }
+
+  .page-header {
+    background: #1d4ed8;
+    color: white;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    border-radius: 4px;
+  }
+  .page-header h1 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+  .page-header p  { font-size: 9px; opacity: 0.85; }
+
+  .summary-bar {
+    display: flex;
+    gap: 24px;
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 7px 12px;
+    margin-bottom: 18px;
+    font-size: 10px;
+  }
+  .summary-bar .label { color: #6b7280; margin-right: 4px; }
+  .summary-bar .value { font-weight: 700; }
+
+  .customer-block { margin-bottom: 20px; page-break-inside: avoid; }
+
+  .customer-header {
+    background: #dbeafe;
+    border-left: 4px solid #2563eb;
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .customer-header .name { font-size: 12px; font-weight: 700; color: #1e3a8a; }
+  .customer-header .contact { font-size: 9px; color: #374151; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 8px; }
+  thead th {
+    background: #e0e7ff;
+    color: #1e3a8a;
+    font-weight: 700;
+    text-align: left;
+    padding: 4px 6px;
+    border-bottom: 2px solid #93c5fd;
+  }
+  tbody tr:nth-child(even) { background: #f9fafb; }
+  td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+
+  .status-waiting  { color: #92400e; font-weight: 600; }
+  .status-approved { color: #065f46; font-weight: 600; }
+  .status-refused  { color: #991b1b; font-weight: 600; }
+  .status-cancelled{ color: #6b7280; }
+
+  .checkbox-col { text-align: center; font-size: 13px; }
+
+  .call-footer {
+    border-top: 1px dashed #d1d5db;
+    padding-top: 5px;
+    margin-top: 2px;
+    display: flex;
+    gap: 32px;
+    font-size: 9px;
+    color: #6b7280;
+  }
+  .call-footer span { flex: 1; border-bottom: 1px solid #9ca3af; padding-bottom: 2px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>PM Approval Call Sheet &mdash; {{ month_label }}</h1>
+  <p>Generated {{ generated_date }} &mdash; {{ total_jobs }} job{{ 's' if total_jobs != 1 else '' }} &mdash; {{ "%.1f"|format(total_hours) }} estimated hours total</p>
+</div>
+
+{% for group in customers %}
+<div class="customer-block">
+  <div class="customer-header">
+    <span class="name">{{ group.company_name }}</span>
+    <span class="contact">
+      {% if group.primary_contact %}{{ group.primary_contact }}{% endif %}
+      {% if group.phone %} &nbsp;&bull;&nbsp; {{ group.phone }}{% endif %}
+      {% if group.email %} &nbsp;&bull;&nbsp; {{ group.email }}{% endif %}
+      &nbsp;&bull;&nbsp; {{ group.job_count }} job{{ 's' if group.job_count != 1 else '' }}
+      &nbsp;&bull;&nbsp; {{ "%.1f"|format(group.total_hours) }}h est.
+    </span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Site</th>
+        <th>Asset</th>
+        <th>Service</th>
+        <th style="text-align:right;">Est. Hrs</th>
+        <th>Current Status</th>
+        <th style="text-align:center;">✓ App.</th>
+        <th style="text-align:center;">✗ Ref.</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in group.jobs %}
+      <tr>
+        <td>{{ job.site_name }}</td>
+        <td>{{ job.asset_name }}</td>
+        <td>{{ job.service_title }}</td>
+        <td style="text-align:right;">{{ "%.1f"|format(job.estimated_hours) }}</td>
+        <td>
+          {% if job.approval_status == "Approved" %}
+            <span class="status-approved">Approved</span>
+          {% elif job.approval_status == "Refused by Customer" %}
+            <span class="status-refused">Refused</span>
+          {% elif job.approval_status == "Cancelled" %}
+            <span class="status-cancelled">Cancelled</span>
+          {% else %}
+            <span class="status-waiting">Awaiting</span>
+          {% endif %}
+        </td>
+        <td class="checkbox-col">☐</td>
+        <td class="checkbox-col">☐</td>
+        <td style="min-width:60px;">&nbsp;</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="call-footer">
+    <span>Called by: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+    <span>Date called: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+    <span>Spoke to: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+  </div>
+</div>
+{% endfor %}
+
+</body>
+</html>

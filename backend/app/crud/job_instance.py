@@ -1,4 +1,5 @@
 from calendar import monthrange
+from collections import defaultdict
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -7,6 +8,13 @@ from app.models.job_comment import JobComment
 from app.models.job_instance import JobInstance
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.schemas.job_instance import JobInstanceUpdate, MonthInitResult
+
+
+def _add_months(d: date, months: int) -> date:
+    m = d.month + months
+    y = d.year + (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    return date(y, m, min(d.day, monthrange(y, m)[1]))
 
 
 def get(db: Session, instance_id: int) -> JobInstance | None:
@@ -67,23 +75,37 @@ def initialize_month(db: Session, target_month_year: str) -> MonthInitResult:
         .all()
     )
 
+    # Group by asset so we can apply skip logic: when multiple services for the
+    # same asset are due in the same month, only the longest-interval one is done.
+    by_asset: dict[int, list[MaintenanceSchedule]] = defaultdict(list)
+    for s in schedules:
+        by_asset[s.asset_id].append(s)
+
     created = 0
     already_existed = 0
 
-    for schedule in schedules:
-        existing = (
-            db.query(JobInstance)
-            .filter(
-                JobInstance.schedule_id == schedule.id,
-                JobInstance.target_month_year == target_month_year,
+    for asset_schedules in by_asset.values():
+        max_interval = max(s.frequency_months for s in asset_schedules)
+
+        for schedule in asset_schedules:
+            if schedule.frequency_months < max_interval:
+                # Shorter-interval service superseded this month — advance without creating a job.
+                schedule.date_next_due = _add_months(schedule.date_next_due, schedule.frequency_months)
+                continue
+
+            existing = (
+                db.query(JobInstance)
+                .filter(
+                    JobInstance.schedule_id == schedule.id,
+                    JobInstance.target_month_year == target_month_year,
+                )
+                .first()
             )
-            .first()
-        )
-        if existing:
-            already_existed += 1
-        else:
-            db.add(JobInstance(schedule_id=schedule.id, target_month_year=target_month_year))
-            created += 1
+            if existing:
+                already_existed += 1
+            else:
+                db.add(JobInstance(schedule_id=schedule.id, target_month_year=target_month_year))
+                created += 1
 
     db.commit()
     return MonthInitResult(target_month_year=target_month_year, created_count=created, already_existed=already_existed)

@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Any
 
@@ -12,4 +11,10 @@ _jinja_env = Environment(loader=FileSystemLoader(str(_TEMPLATE_DIR)), autoescape
 def generate_pdf(report_data: dict[str, Any]) -> bytes:
     template = _jinja_env.get_template("report.html")
     html_content = template.render(**report_data)
+    return HTML(string=html_content, base_url=str(_TEMPLATE_DIR)).write_pdf()
+
+
+def generate_call_sheet_pdf(data: dict[str, Any]) -> bytes:
+    template = _jinja_env.get_template("call_sheet.html")
+    html_content = template.render(**data)
     return HTML(string=html_content, base_url=str(_TEMPLATE_DIR)).write_pdf()

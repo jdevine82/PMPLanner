@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db, require_admin
+from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import maintenance_schedule as crud
 from app.schemas.maintenance_schedule import MaintenanceScheduleCreate, MaintenanceScheduleOut, MaintenanceScheduleUpdate
 
@@ -18,7 +18,7 @@ def list_schedules(asset_id: int | None = None, db: Session = Depends(get_db), _
 
 
 @router.post("", response_model=MaintenanceScheduleOut, status_code=201)
-def create_schedule(data: MaintenanceScheduleCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def create_schedule(data: MaintenanceScheduleCreate, db: Session = Depends(get_db), _=Depends(require_staff)):
     return crud.create(db, data)
 
 
@@ -32,7 +32,7 @@ def get_schedule(schedule_id: int, db: Session = Depends(get_db), _=Depends(get_
 
 @router.patch("/{schedule_id}", response_model=MaintenanceScheduleOut)
 def update_schedule(
-    schedule_id: int, data: MaintenanceScheduleUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    schedule_id: int, data: MaintenanceScheduleUpdate, db: Session = Depends(get_db), _=Depends(require_staff)
 ):
     obj = crud.get(db, schedule_id)
     if not obj:

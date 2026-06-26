@@ -1,6 +1,7 @@
 import { apiClient } from './client'
 
 export interface ReportData {
+  branding: { business_name: string | null; logo_data_uri: string | null }
   customer: { id: number; company_name: string; primary_contact: string | null; phone: string | null; email: string | null }
   generated_date: string
   forecast_months: number
@@ -10,6 +11,22 @@ export interface ReportData {
   forecast: Array<{ due_date: string; asset_name: string; service_title: string; estimated_hours: number }>
 }
 
+function fetchAndDownload(url: string, filename: string) {
+  const token = localStorage.getItem('access_token')
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then((r) => r.blob())
+    .then((blob) => {
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 100)
+    })
+}
+
 export const reportsApi = {
   getData: async (customerId: number, forecastMonths = 12): Promise<ReportData> => {
     const { data } = await apiClient.get<ReportData>(`/reports/${customerId}`, { params: { forecast_months: forecastMonths } })
@@ -17,32 +34,14 @@ export const reportsApi = {
   },
 
   downloadPdf: (customerId: number, forecastMonths = 12): void => {
-    const token = localStorage.getItem('access_token')
-    const url = `/api/v1/reports/${customerId}/pdf?forecast_months=${forecastMonths}`
-    const a = document.createElement('a')
-    a.href = url
-    // Trigger with auth header via fetch + blob
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.blob())
-      .then((blob) => {
-        a.href = URL.createObjectURL(blob)
-        a.download = `PM_Report_${customerId}.pdf`
-        a.click()
-        URL.revokeObjectURL(a.href)
-      })
+    fetchAndDownload(`/api/v1/reports/${customerId}/pdf?forecast_months=${forecastMonths}`, `PM_Report_${customerId}.pdf`)
   },
 
   downloadXlsx: (customerId: number, forecastMonths = 12): void => {
-    const token = localStorage.getItem('access_token')
-    const url = `/api/v1/reports/${customerId}/xlsx?forecast_months=${forecastMonths}`
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.blob())
-      .then((blob) => {
-        const a = document.createElement('a')
-        a.href = URL.createObjectURL(blob)
-        a.download = `PM_Report_${customerId}.xlsx`
-        a.click()
-        URL.revokeObjectURL(a.href)
-      })
+    fetchAndDownload(`/api/v1/reports/${customerId}/xlsx?forecast_months=${forecastMonths}`, `PM_Report_${customerId}.xlsx`)
+  },
+
+  downloadCallSheet: (monthYear: string): void => {
+    fetchAndDownload(`/api/v1/reports/call-sheet/${monthYear}/pdf`, `Call_Sheet_${monthYear}.pdf`)
   },
 }

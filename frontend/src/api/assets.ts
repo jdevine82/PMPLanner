@@ -9,7 +9,7 @@ export const assetsApi = {
     return data
   },
 
-  create: async (payload: Omit<Asset, 'id' | 'created_at'>): Promise<Asset> => {
+  create: async (payload: Omit<Asset, 'id' | 'created_at' | 'servicem8_asset_uuid'> & { servicem8_asset_uuid?: string | null }): Promise<Asset> => {
     const { data } = await apiClient.post<Asset>('/assets', payload)
     return data
   },

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class AssetCreate(BaseModel):
     site_id: int
-    servicem8_asset_uuid: str
+    servicem8_asset_uuid: str | None = None
     asset_name: str
     serial_number: str | None = None
     model_number: str | None = None
@@ -22,7 +22,7 @@ class AssetOut(BaseModel):
 
     id: int
     site_id: int
-    servicem8_asset_uuid: str
+    servicem8_asset_uuid: str | None
     asset_name: str
     serial_number: str | None
     model_number: str | None

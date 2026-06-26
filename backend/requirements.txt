@@ -12,5 +12,6 @@ python-docx==1.1.2
 # Phase 3
 httpx==0.28.1
 weasyprint==62.3
+pydyf==0.10.0
 openpyxl==3.1.5
 jinja2==3.1.4

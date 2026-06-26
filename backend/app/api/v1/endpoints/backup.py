@@ -1,10 +1,12 @@
 import os
+import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -58,6 +60,36 @@ def create_backup(db: Session = Depends(get_db)):
         "file_size_bytes": file_size,
         "created_at":      log.created_at.isoformat(),
     }
+
+
+@router.post("/upload", dependencies=[Depends(require_admin)])
+async def upload_backup(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    filename = Path(file.filename or "").name
+    if not filename.endswith(".dump") or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "File must be a .dump file")
+
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    filepath = BACKUP_DIR / filename
+
+    with open(filepath, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    file_size = filepath.stat().st_size
+    log = DatabaseBackupLog(filename=filename, file_size_bytes=file_size)
+    db.add(log)
+    db.commit()
+
+    return {"filename": filename, "file_size_bytes": file_size}
+
+
+@router.get("/download/{filename}", dependencies=[Depends(require_admin)])
+def download_backup(filename: str):
+    if "/" in filename or "\\" in filename or not filename.endswith(".dump"):
+        raise HTTPException(400, "Invalid filename")
+    filepath = BACKUP_DIR / filename
+    if not filepath.exists():
+        raise HTTPException(404, "Backup file not found")
+    return FileResponse(filepath, filename=filename, media_type="application/octet-stream")
 
 
 @router.get("/logs", dependencies=[Depends(require_admin)])

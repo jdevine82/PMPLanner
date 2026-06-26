@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 from sqlalchemy.orm import Session
 
@@ -20,6 +22,57 @@ def make_client(db: Session) -> httpx.AsyncClient:
         headers={"X-API-Key": api_key, "Accept": "application/json"},
         timeout=30.0,
     )
+
+
+async def fetch_all_companies(db: Session) -> list[dict]:
+    """Fetch all active companies enriched with primary contact details."""
+    async with make_client(db) as client:
+        companies_r, contacts_r = await asyncio.gather(
+            client.get("/company.json"),
+            client.get("/companycontact.json"),
+        )
+    companies_r.raise_for_status()
+    contacts_r.raise_for_status()
+
+    # Build a lookup: company_uuid → best contact
+    # Priority: JOB+primary > JOB > any active
+    job_primary: dict[str, dict] = {}
+    job_any: dict[str, dict] = {}
+    any_contact: dict[str, dict] = {}
+    for ct in contacts_r.json():
+        if ct.get("active") != 1:
+            continue
+        cid = ct.get("company_uuid") or ""
+        if not cid:
+            continue
+        is_job = ct.get("type") == "JOB"
+        is_primary = ct.get("is_primary_contact") == "1"
+        if is_job and is_primary:
+            job_primary.setdefault(cid, ct)
+        elif is_job:
+            job_any.setdefault(cid, ct)
+        else:
+            any_contact.setdefault(cid, ct)
+
+    enriched = []
+    for c in companies_r.json():
+        if c.get("active") != 1:
+            continue
+        uuid = c.get("uuid") or ""
+        ct = job_primary.get(uuid) or job_any.get(uuid) or any_contact.get(uuid)
+        if ct:
+            first = (ct.get("first") or "").strip()
+            last = (ct.get("last") or "").strip()
+            c["_contact_name"] = f"{first} {last}".strip() or None
+            c["_contact_phone"] = ct.get("mobile") or ct.get("phone") or None
+            c["_contact_email"] = ct.get("email") or None
+        else:
+            c["_contact_name"] = None
+            c["_contact_phone"] = None
+            c["_contact_email"] = None
+        enriched.append(c)
+
+    return enriched
 
 
 async def search_companies(db: Session, term: str) -> list[dict]:
@@ -50,3 +103,10 @@ async def fetch_job_activities(db: Session, sm8_job_uuid: str) -> list[dict]:
         r = await client.get("/jobactivity.json", params={"$filter": f"job_uuid eq '{sm8_job_uuid}'"})
         r.raise_for_status()
         return r.json()
+
+
+async def fetch_badges(db: Session) -> list[dict]:
+    async with make_client(db) as client:
+        r = await client.get("/badge.json")
+        r.raise_for_status()
+        return [b for b in r.json() if b.get("active") == 1]

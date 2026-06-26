@@ -11,6 +11,7 @@ class MaintenanceScheduleCreate(BaseModel):
     date_last_done: date | None = None
     date_next_due: date
     permanent_custom_instructions: str | None = None
+    sm8_group_tag: str | None = None
 
 
 class MaintenanceScheduleUpdate(BaseModel):
@@ -20,6 +21,7 @@ class MaintenanceScheduleUpdate(BaseModel):
     date_last_done: date | None = None
     date_next_due: date | None = None
     permanent_custom_instructions: str | None = None
+    sm8_group_tag: str | None = None
 
 
 class MaintenanceScheduleOut(BaseModel):
@@ -33,4 +35,5 @@ class MaintenanceScheduleOut(BaseModel):
     date_last_done: date | None
     date_next_due: date
     permanent_custom_instructions: str | None
+    sm8_group_tag: str | None
     created_at: datetime

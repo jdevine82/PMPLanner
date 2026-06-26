@@ -1,4 +1,7 @@
 import { apiClient } from './client'
+import type { SM8Badge } from '@/types'
+
+export type { SM8Badge }
 
 export interface SM8Company {
   uuid: string
@@ -40,4 +43,15 @@ export const servicem8Api = {
     const { data } = await apiClient.post('/servicem8/consolidate-hours/sync')
     return data
   },
+
+  importCustomers: async (): Promise<{ created: number; updated: number }> => {
+    const { data } = await apiClient.post<{ created: number; updated: number }>('/servicem8/import-customers')
+    return data
+  },
+
+  fetchBadges: async (): Promise<SM8Badge[]> => {
+    const { data } = await apiClient.get<SM8Badge[]>('/servicem8/badges')
+    return data
+  },
+
 }

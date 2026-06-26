@@ -27,6 +27,8 @@ export function useDashboardRows(month: string) {
     const customerMap  = new Map(customers.data!.map((c) => [c.id, c]))
     const templateMap  = new Map(templates.data!.map((t) => [t.id, t]))
 
+    // Build individual rows first
+    const allRows: DashboardRow[] = []
     for (const job of jobs.data!) {
       const schedule = scheduleMap.get(job.schedule_id)
       if (!schedule) continue
@@ -38,9 +40,37 @@ export function useDashboardRows(month: string) {
       if (!customer) continue
       const template = templateMap.get(schedule.service_id)
       if (!template) continue
-      rows.push({ job, schedule, asset, site, customer, template })
+      allRows.push({ job, schedule, asset, site, customer, template })
+    }
+
+    // Group rows that share an sm8_group_tag at the same site in the same month
+    const grouped = new Map<string, DashboardRow[]>()
+    const ungrouped: DashboardRow[] = []
+
+    for (const row of allRows) {
+      const tag = row.schedule.sm8_group_tag
+      if (tag) {
+        const key = `${tag}::${row.site.id}::${row.job.target_month_year}`
+        if (!grouped.has(key)) grouped.set(key, [])
+        grouped.get(key)!.push(row)
+      } else {
+        ungrouped.push(row)
+      }
+    }
+
+    rows.push(...ungrouped)
+
+    for (const groupRows of grouped.values()) {
+      const [lead] = groupRows
+      rows.push(groupRows.length > 1 ? { ...lead, groupedRows: groupRows } : lead)
     }
   }
 
   return { rows, isLoading, isError }
+}
+
+// Helper: total estimated hours for a row (summed across group members)
+export function rowEstimatedHours(row: DashboardRow): number {
+  if (row.groupedRows) return row.groupedRows.reduce((s, r) => s + r.schedule.estimated_labor_hours, 0)
+  return row.schedule.estimated_labor_hours
 }

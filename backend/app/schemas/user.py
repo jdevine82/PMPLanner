@@ -7,13 +7,13 @@ from pydantic import BaseModel, ConfigDict
 class UserCreate(BaseModel):
     username: str
     password: str
-    user_role: Literal["Admin", "Staff"] = "Staff"
+    user_role: Literal["Admin", "Staff", "Worker"] = "Staff"
 
 
 class UserUpdate(BaseModel):
     username: str | None = None
     password: str | None = None
-    user_role: Literal["Admin", "Staff"] | None = None
+    user_role: Literal["Admin", "Staff", "Worker"] | None = None
 
 
 class UserOut(BaseModel):

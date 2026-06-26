@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db, require_admin
+from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import customer as crud
 from app.schemas.customer import CustomerCreate, CustomerOut, CustomerUpdate
 
@@ -12,17 +12,18 @@ router = APIRouter()
 def list_customers(
     search: str | None = Query(None),
     skip: int = 0,
-    limit: int = 200,
+    limit: int = 10000,
+    has_schedules: bool = Query(False),
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
     if search:
-        return crud.search(db, search)
-    return crud.get_all(db, skip, limit)
+        return crud.search(db, search, has_schedules=has_schedules)
+    return crud.get_all(db, skip, limit, has_schedules=has_schedules)
 
 
 @router.post("", response_model=CustomerOut, status_code=201)
-def create_customer(data: CustomerCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def create_customer(data: CustomerCreate, db: Session = Depends(get_db), _=Depends(require_staff)):
     return crud.create(db, data)
 
 
@@ -36,7 +37,7 @@ def get_customer(customer_id: int, db: Session = Depends(get_db), _=Depends(get_
 
 @router.patch("/{customer_id}", response_model=CustomerOut)
 def update_customer(
-    customer_id: int, data: CustomerUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)
+    customer_id: int, data: CustomerUpdate, db: Session = Depends(get_db), _=Depends(require_staff)
 ):
     obj = crud.get(db, customer_id)
     if not obj:

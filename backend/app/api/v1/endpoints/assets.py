@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db, require_admin
+from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import asset as crud
 from app.schemas.asset import AssetCreate, AssetOut, AssetUpdate
 
@@ -18,7 +18,7 @@ def list_assets(site_id: int | None = None, db: Session = Depends(get_db), _=Dep
 
 
 @router.post("", response_model=AssetOut, status_code=201)
-def create_asset(data: AssetCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def create_asset(data: AssetCreate, db: Session = Depends(get_db), _=Depends(require_staff)):
     return crud.create(db, data)
 
 
@@ -31,7 +31,7 @@ def get_asset(asset_id: int, db: Session = Depends(get_db), _=Depends(get_curren
 
 
 @router.patch("/{asset_id}", response_model=AssetOut)
-def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db), _=Depends(require_staff)):
     obj = crud.get(db, asset_id)
     if not obj:
         raise HTTPException(404, "Asset not found")

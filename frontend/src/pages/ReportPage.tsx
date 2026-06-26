@@ -13,8 +13,8 @@ export default function ReportPage() {
   const [forecastMonths, setForecastMonths] = useState(12)
 
   const { data: customers = [] } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => customersApi.list(),
+    queryKey: ['customers', { hasSchedules: true }],
+    queryFn: () => customersApi.list(undefined, true),
   })
 
   const { data: reportData, isLoading, isError, refetch } = useQuery({

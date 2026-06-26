@@ -6,24 +6,30 @@ import { assetsApi } from '@/api/assets'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
-import type { Site } from '@/types'
+import type { Site, Asset } from '@/types'
 
 interface Props {
   site: Site
+  companyUuid: string
+  existingAssets: Asset[]
   open: boolean
   onClose: () => void
 }
 
-export function AssetImportModal({ site, open, onClose }: Props) {
+export function AssetImportModal({ site, companyUuid, existingAssets, open, onClose }: Props) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const { data: sm8Assets = [], isLoading, error } = useQuery({
-    queryKey: ['sm8-assets', site.servicem8_client_uuid],
-    queryFn: () => servicem8Api.companyAssets(site.servicem8_client_uuid!),
-    enabled: open && !!site.servicem8_client_uuid,
+  const importedUuids = new Set(existingAssets.map((a) => a.servicem8_asset_uuid).filter(Boolean))
+
+  const { data: rawSm8Assets = [], isLoading, error } = useQuery({
+    queryKey: ['sm8-assets', companyUuid],
+    queryFn: () => servicem8Api.companyAssets(companyUuid),
+    enabled: open,
   })
+
+  const sm8Assets = rawSm8Assets.filter((a) => !importedUuids.has(a.uuid))
 
   const importMutation = useMutation({
     mutationFn: async () => {
@@ -61,21 +67,23 @@ export function AssetImportModal({ site, open, onClose }: Props) {
     setSelected(selected.size === sm8Assets.length ? new Set() : new Set(sm8Assets.map((a) => a.uuid)))
   }
 
-  if (!site.servicem8_client_uuid) return null
-
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title={`Import Assets — ${site.site_name}`} description="Select assets from ServiceM8 to link to this site.">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title={`Import Assets — ${site.site_name}`} description="Assets already linked locally are excluded.">
       {isLoading && <p className="text-sm text-gray-400 py-4 text-center">Fetching from ServiceM8…</p>}
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 py-2">
-          <AlertCircle className="h-4 w-4" />
-          Failed to fetch assets. Check your API key in Settings.
+        <div className="flex items-center gap-2 text-sm text-red-600 py-2 rounded-md border border-red-200 bg-red-50 px-3">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{(error as any)?.response?.data?.detail ?? String(error)}</span>
         </div>
       )}
 
-      {!isLoading && !error && sm8Assets.length === 0 && (
+      {!isLoading && !error && rawSm8Assets.length === 0 && (
         <p className="text-sm text-gray-400 py-4 text-center">No assets found for this customer in ServiceM8.</p>
+      )}
+
+      {!isLoading && !error && rawSm8Assets.length > 0 && sm8Assets.length === 0 && (
+        <p className="text-sm text-gray-400 py-4 text-center">All {rawSm8Assets.length} SM8 asset{rawSm8Assets.length !== 1 ? 's' : ''} already imported.</p>
       )}
 
       {sm8Assets.length > 0 && (

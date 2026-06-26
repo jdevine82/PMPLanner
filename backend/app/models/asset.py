@@ -16,7 +16,7 @@ class Asset(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     site_id: Mapped[int] = mapped_column(ForeignKey("sites.id", ondelete="CASCADE"))
-    servicem8_asset_uuid: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    servicem8_asset_uuid: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     asset_name: Mapped[str] = mapped_column(String(255), nullable=False)
     serial_number: Mapped[str | None] = mapped_column(String(100))
     model_number: Mapped[str | None] = mapped_column(String(100))

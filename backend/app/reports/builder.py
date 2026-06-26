@@ -3,18 +3,37 @@ Assembles all data required for a customer report.
 Returns a plain dict that is passed to both the PDF/Excel generators
 and the JSON preview endpoint.
 """
+import base64
+import os
 from calendar import monthrange
 from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.models.app_setting import AppSetting
 from app.models.asset import Asset
 from app.models.customer import Customer
 from app.models.job_instance import JobInstance
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.service_template import ServiceTemplate
 from app.models.site import Site
+
+
+def _build_branding(db: Session) -> dict:
+    setting = db.query(AppSetting).first()
+    if not setting:
+        return {"business_name": None, "logo_data_uri": None}
+    logo_data_uri = None
+    if setting.logo_filename:
+        path = os.path.join(settings.UPLOADS_DIR, "logo", setting.logo_filename)
+        if os.path.exists(path):
+            ext = os.path.splitext(setting.logo_filename)[1].lower().lstrip(".")
+            mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
+            with open(path, "rb") as f:
+                logo_data_uri = f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+    return {"business_name": setting.business_name or None, "logo_data_uri": logo_data_uri}
 
 
 def build_report(db: Session, customer_id: int, forecast_months: int = 12) -> dict[str, Any]:
@@ -50,6 +69,7 @@ def build_report(db: Session, customer_id: int, forecast_months: int = 12) -> di
     )
 
     return {
+        "branding":         _build_branding(db),
         "customer":         _customer_dict(customer),
         "generated_date":   date.today().isoformat(),
         "forecast_months":  forecast_months,

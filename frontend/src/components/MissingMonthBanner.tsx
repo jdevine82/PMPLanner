@@ -7,9 +7,10 @@ import { useToast } from '@/components/ui/Toast'
 
 interface Props {
   month: string
+  readOnly?: boolean
 }
 
-export function MissingMonthBanner({ month }: Props) {
+export function MissingMonthBanner({ month, readOnly = false }: Props) {
   const [dismissed, setDismissed] = useState(false)
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -31,16 +32,18 @@ export function MissingMonthBanner({ month }: Props) {
       <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
       <p className="flex-1 text-sm text-amber-800">
         <span className="font-medium">No jobs scheduled for {formatMonthYear(month)}.</span>{' '}
-        Click to auto-generate drafts from active maintenance schedules.
+        {readOnly ? 'Contact a staff member to generate drafts.' : 'Click to auto-generate drafts from active maintenance schedules.'}
       </p>
-      <button
-        onClick={() => initMutation.mutate()}
-        disabled={initMutation.isPending}
-        className="flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-60 transition-colors"
-      >
-        <Zap className="h-3.5 w-3.5" />
-        {initMutation.isPending ? 'Generating…' : 'Run Now'}
-      </button>
+      {!readOnly && (
+        <button
+          onClick={() => initMutation.mutate()}
+          disabled={initMutation.isPending}
+          className="flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-60 transition-colors"
+        >
+          <Zap className="h-3.5 w-3.5" />
+          {initMutation.isPending ? 'Generating…' : 'Run Now'}
+        </button>
+      )}
       <button onClick={() => setDismissed(true)} className="text-amber-500 hover:text-amber-700">
         <X className="h-4 w-4" />
       </button>

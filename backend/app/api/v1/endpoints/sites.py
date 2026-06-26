@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, get_db, require_admin
+from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import site as crud
 from app.schemas.site import SiteCreate, SiteOut, SiteUpdate
 
@@ -18,7 +18,7 @@ def list_sites(customer_id: int | None = None, db: Session = Depends(get_db), _=
 
 
 @router.post("", response_model=SiteOut, status_code=201)
-def create_site(data: SiteCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def create_site(data: SiteCreate, db: Session = Depends(get_db), _=Depends(require_staff)):
     return crud.create(db, data)
 
 
@@ -31,7 +31,7 @@ def get_site(site_id: int, db: Session = Depends(get_db), _=Depends(get_current_
 
 
 @router.patch("/{site_id}", response_model=SiteOut)
-def update_site(site_id: int, data: SiteUpdate, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def update_site(site_id: int, data: SiteUpdate, db: Session = Depends(get_db), _=Depends(require_staff)):
     obj = crud.get(db, site_id)
     if not obj:
         raise HTTPException(404, "Site not found")

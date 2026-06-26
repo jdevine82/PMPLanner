@@ -6,6 +6,7 @@ class CustomerCreate(BaseModel):
     primary_contact: str | None = None
     phone: str | None = None
     email: str | None = None
+    servicem8_uuid: str | None = None
 
 
 class CustomerUpdate(BaseModel):
@@ -13,6 +14,7 @@ class CustomerUpdate(BaseModel):
     primary_contact: str | None = None
     phone: str | None = None
     email: str | None = None
+    servicem8_uuid: str | None = None
 
 
 class CustomerOut(BaseModel):
@@ -23,3 +25,4 @@ class CustomerOut(BaseModel):
     primary_contact: str | None
     phone: str | None
     email: str | None
+    servicem8_uuid: str | None
