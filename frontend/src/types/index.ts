@@ -65,6 +65,7 @@ export interface MaintenanceSchedule {
   frequency_months: number
   date_last_done: string | null
   date_next_due: string
+  date_anchor_next_due?: string | null
   permanent_custom_instructions: string | null
   sm8_group_tag: string | null
   created_at: string

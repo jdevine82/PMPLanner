@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
-import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, Link2, Download, Calendar } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, Link2, Download, Calendar, ChevronsRight } from 'lucide-react'
 import { customersApi } from '@/api/customers'
 import { sitesApi } from '@/api/sites'
 import { assetsApi } from '@/api/assets'
@@ -15,6 +15,7 @@ import { useToast } from '@/components/ui/Toast'
 import { useDebounce } from '@/hooks/useDebounce'
 import { ServiceM8CustomerSearch } from '@/components/ServiceM8CustomerSearch'
 import { AssetImportModal } from '@/components/AssetImportModal'
+import { WorkloadForecastFooter } from '@/components/WorkloadForecastFooter'
 import type { Customer, Site, Asset, MaintenanceSchedule, ServiceTemplate } from '@/types'
 import type { SM8Company } from '@/api/servicem8'
 import { apiClient } from '@/api/client'
@@ -240,6 +241,12 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
     onError: () => toast('Cannot delete — schedule may have linked jobs', 'error'),
   })
 
+  const pullForward = useMutation({
+    mutationFn: schedulesApi.pullForward,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['schedules'] }); toast('Service pulled forward to today') },
+    onError: () => toast('Could not pull forward — service may already be due', 'error'),
+  })
+
   const templateMap = Object.fromEntries(templates.map((t) => [t.id, t.title]))
 
   return (
@@ -251,7 +258,15 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
             <span className="font-medium">{templateMap[s.service_id] ?? `Template #${s.service_id}`}</span>
             <span className="text-gray-400">Every {s.frequency_months}mo</span>
             <span className="text-gray-400">{s.estimated_labor_hours}h est.</span>
-            <span className="flex items-center gap-1 text-gray-400"><Calendar className="h-3 w-3" />Due {s.date_next_due}</span>
+            <span className="flex items-center gap-1 text-gray-400">
+              <Calendar className="h-3 w-3" />
+              Due {s.date_next_due}
+              {s.date_anchor_next_due && (
+                <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700" title={`Originally due ${s.date_anchor_next_due}`}>
+                  pulled forward
+                </span>
+              )}
+            </span>
             {s.sm8_group_tag && (
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
@@ -261,6 +276,22 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
           </div>
           {!readOnly && (
             <div className="flex gap-1">
+              {!s.date_anchor_next_due && s.date_next_due > new Date().toISOString().slice(0, 10) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Pull service forward to today (next cycle stays on original schedule)"
+                  onClick={() => {
+                    if (confirm(`Bring this service forward to today?\n\nThe next cycle after completion will remain on the original date (${s.date_next_due}).`)) {
+                      pullForward.mutate(s.id)
+                    }
+                  }}
+                  disabled={pullForward.isPending}
+                  className="text-amber-600 hover:text-amber-800"
+                >
+                  <ChevronsRight className="h-3 w-3" />
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => setEditSchedule(s)}><Pencil className="h-3 w-3" /></Button>
               <Button variant="ghost" size="sm" onClick={() => deleteSchedule.mutate(s.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-3 w-3" /></Button>
             </div>
@@ -568,6 +599,8 @@ export default function CustomersPage() {
           ))}
         </div>
       </div>
+
+      <WorkloadForecastFooter />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen} title="New Customer">
         <CustomerForm onSubmit={(d) => createCustomer.mutate(d)} onCancel={() => setCreateOpen(false)} loading={createCustomer.isPending} />

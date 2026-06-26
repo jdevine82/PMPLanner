@@ -20,6 +20,7 @@ class MaintenanceScheduleUpdate(BaseModel):
     frequency_months: int | None = None
     date_last_done: date | None = None
     date_next_due: date | None = None
+    date_anchor_next_due: date | None = None
     permanent_custom_instructions: str | None = None
     sm8_group_tag: str | None = None
 
@@ -34,6 +35,7 @@ class MaintenanceScheduleOut(BaseModel):
     frequency_months: int
     date_last_done: date | None
     date_next_due: date
+    date_anchor_next_due: date | None
     permanent_custom_instructions: str | None
     sm8_group_tag: str | None
     created_at: datetime

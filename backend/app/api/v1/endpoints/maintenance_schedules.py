@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -38,6 +40,22 @@ def update_schedule(
     if not obj:
         raise HTTPException(404, "Schedule not found")
     return crud.update(db, obj, data)
+
+
+@router.post("/{schedule_id}/pull-forward", response_model=MaintenanceScheduleOut)
+def pull_forward_schedule(schedule_id: int, db: Session = Depends(get_db), _=Depends(require_staff)):
+    """Move a schedule's next due date to today, preserving the original date so the
+    subsequent cycle remains on the original cadence after the job is completed."""
+    obj = crud.get(db, schedule_id)
+    if not obj:
+        raise HTTPException(404, "Schedule not found")
+    if obj.date_next_due <= date.today():
+        raise HTTPException(400, "Service is already due today or overdue")
+    update_data = MaintenanceScheduleUpdate(
+        date_anchor_next_due=obj.date_next_due,
+        date_next_due=date.today(),
+    )
+    return crud.update(db, obj, update_data)
 
 
 @router.delete("/{schedule_id}", status_code=204, dependencies=[Depends(require_admin)])

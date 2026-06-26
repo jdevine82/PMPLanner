@@ -22,4 +22,9 @@ export const schedulesApi = {
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/schedules/${id}`)
   },
+
+  pullForward: async (id: number): Promise<MaintenanceSchedule> => {
+    const { data } = await apiClient.post<MaintenanceSchedule>(`/schedules/${id}/pull-forward`)
+    return data
+  },
 }

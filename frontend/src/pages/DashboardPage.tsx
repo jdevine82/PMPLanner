@@ -9,6 +9,7 @@ import { JobGrid } from '@/components/JobGrid'
 import { MissingMonthBanner } from '@/components/MissingMonthBanner'
 import { MonthPicker } from '@/components/MonthPicker'
 import { JobDetailDrawer } from '@/components/JobDetailDrawer'
+import { WorkloadForecastFooter } from '@/components/WorkloadForecastFooter'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
 import { apiClient } from '@/api/client'
@@ -186,6 +187,8 @@ export default function DashboardPage() {
         row={activeDetailRow}
         onClose={() => setActiveDetailRow(null)}
       />
+
+      <WorkloadForecastFooter />
     </div>
   )
 }

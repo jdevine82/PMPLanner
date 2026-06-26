@@ -223,9 +223,18 @@ async def consolidate_labor_hours(db: Session) -> dict:
 
 
 def _advance_next_due(schedule: MaintenanceSchedule) -> None:
-    """Advance date_next_due by frequency_months from today."""
+    """Advance date_next_due by frequency_months from today.
+
+    If date_anchor_next_due is set (meaning the job was pulled forward), restore
+    the original scheduled date instead of advancing from today, so the subsequent
+    cycle stays on the original cadence."""
     from calendar import monthrange
     from datetime import date
+
+    if schedule.date_anchor_next_due is not None:
+        schedule.date_next_due = schedule.date_anchor_next_due
+        schedule.date_anchor_next_due = None
+        return
 
     today = date.today()
     m = today.month + schedule.frequency_months
