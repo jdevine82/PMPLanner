@@ -84,6 +84,15 @@ export interface MaintenanceSchedule {
 export type ApprovalStatus = 'Waiting Approval' | 'Approved' | 'Refused by Customer' | 'Cancelled'
 export type SyncStatus = 'Unsynced' | 'In-Progress' | 'Completed' | 'Bypassed'
 
+export type CombinedStatus =
+  | 'Pending Approval'
+  | 'Approved'
+  | 'Sent to SM8'
+  | 'Job in Progress'
+  | 'Completed'
+  | 'Refused by Customer'
+  | 'Done (no SM8)'
+
 export interface PriorIncompleteJob {
   month: string
   approval_status: ApprovalStatus

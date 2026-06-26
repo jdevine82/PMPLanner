@@ -3,13 +3,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Trash2, MessageSquare, Layers, Clock } from 'lucide-react'
 import { jobsApi } from '@/api/jobs'
 import { schedulesApi } from '@/api/schedules'
-import { ApprovalBadge } from '@/components/ui/Badge'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useToast } from '@/components/ui/Toast'
 import { useAuth } from '@/context/AuthContext'
 import { cn } from '@/lib/utils'
 import { rowEstimatedHours } from '@/hooks/useDashboardRows'
-import type { DashboardRow, ApprovalStatus, SyncStatus, JobInstance } from '@/types'
+import { toCombinedStatus, fromCombinedStatus, COMBINED_STATUS_OPTIONS, COMBINED_STATUS_COLOURS, SM8_ONLY_STATUSES } from '@/lib/jobStatus'
+import type { DashboardRow, CombinedStatus, JobInstance } from '@/types'
 
 interface Props {
   row: DashboardRow
@@ -22,15 +22,6 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 function formatMonth(yyyyMM: string): string {
   const [year, month] = yyyyMM.split('-')
   return `${MONTH_NAMES[parseInt(month) - 1]} ${year}`
-}
-
-const APPROVAL_OPTIONS: ApprovalStatus[] = ['Waiting Approval', 'Approved', 'Refused by Customer', 'Cancelled']
-
-const SYNC_COLOURS: Record<SyncStatus, string> = {
-  'Unsynced':    'bg-gray-100 text-gray-500',
-  'In-Progress': 'bg-yellow-100 text-yellow-700',
-  'Completed':   'bg-green-100 text-green-700',
-  'Bypassed':    'bg-purple-100 text-purple-600',
 }
 
 export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props) {
@@ -51,6 +42,9 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
 
   const debouncedHours = useDebounce(hours, 400)
   const debouncedNotes = useDebounce(notes, 400)
+
+  const combinedStatus = toCombinedStatus(job)  // passes actual_labor_hours via JobInstance
+  const isRefused = job.approval_status === 'Refused by Customer'
 
   // Status mutation — updates all jobs in a group simultaneously
   const statusMutation = useMutation({
@@ -96,24 +90,17 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
     }
   }, [debouncedNotes])
 
-  function handleStatusChange(newStatus: ApprovalStatus) {
-    if (newStatus === 'Refused by Customer') { setShowRefusalInput(true); return }
-    statusMutation.mutate({ approval_status: newStatus })
-  }
-
-  function handleSyncStatusChange(newStatus: SyncStatus) {
-    statusMutation.mutate({ sync_status: newStatus })
+  function handleCombinedStatusChange(combined: CombinedStatus) {
+    if (combined === 'Refused by Customer') { setShowRefusalInput(true); return }
+    statusMutation.mutate(fromCombinedStatus(combined))
   }
 
   function submitRefusal() {
     if (!pendingRefusal.trim()) return
-    statusMutation.mutate({ approval_status: 'Refused by Customer', refusal_reason: pendingRefusal.trim() })
+    statusMutation.mutate({ ...fromCombinedStatus('Refused by Customer'), refusal_reason: pendingRefusal.trim() })
     setShowRefusalInput(false)
     setPendingRefusal('')
   }
-
-  const isRefused = job.approval_status === 'Refused by Customer'
-  const syncStatus = job.sync_status as SyncStatus
 
   const priorIncomplete = allRows
     .map((r) => r.job.prior_incomplete_job)
@@ -194,36 +181,28 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
           )}
         </div>
 
-        {/* Approval status + sync badge */}
+        {/* Combined status */}
         <div className="pr-2">
-          {isRefused ? (
-            <div className="flex items-center gap-1">
-              <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-              <ApprovalBadge status={job.approval_status} />
-            </div>
-          ) : (
-            <select
-              value={job.approval_status}
-              onChange={(e) => handleStatusChange(e.target.value as ApprovalStatus)}
-              className="w-full rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            >
-              {APPROVAL_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          )}
-          <div className="mt-0.5 flex items-center gap-1 min-w-0">
-            <select
-              value={syncStatus}
-              onChange={(e) => handleSyncStatusChange(e.target.value as SyncStatus)}
-              className={cn('flex-1 min-w-0 rounded-full px-1.5 py-px text-[10px] font-medium border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer', SYNC_COLOURS[syncStatus])}
-            >
-              {(['Unsynced', 'In-Progress', 'Completed', 'Bypassed'] as SyncStatus[]).map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            {job.servicem8_job_number != null && (
-              <span className="shrink-0 text-[10px] font-mono text-blue-500">#{job.servicem8_job_number}</span>
+          <select
+            value={combinedStatus}
+            onChange={(e) => handleCombinedStatusChange(e.target.value as CombinedStatus)}
+            className={cn(
+              'w-full rounded border border-transparent px-1.5 py-0.5 text-xs font-medium focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400',
+              COMBINED_STATUS_COLOURS[combinedStatus],
             )}
-          </div>
+          >
+            {COMBINED_STATUS_OPTIONS.map((s) => {
+              const isAuto = SM8_ONLY_STATUSES.includes(s)
+              return (
+                <option key={s} value={s} disabled={isAuto}>
+                  {isAuto ? `— ${s} (auto) —` : s}
+                </option>
+              )
+            })}
+          </select>
+          {job.servicem8_job_number != null && (
+            <p className="mt-0.5 text-[10px] font-mono text-blue-500">SM8 #{job.servicem8_job_number}</p>
+          )}
         </div>
 
         {/* Notes — editable (grouped: shows lead's notes) */}

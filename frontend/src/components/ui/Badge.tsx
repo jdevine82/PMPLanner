@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { COMBINED_STATUS_COLOURS, toCombinedStatus } from '@/lib/jobStatus'
 import type { ApprovalStatus, SyncStatus } from '@/types'
 
 const approvalColors: Record<ApprovalStatus, string> = {
@@ -15,8 +16,6 @@ const syncColors: Record<SyncStatus, string> = {
   'Bypassed':    'bg-gray-100 text-gray-600',
 }
 
-interface BadgeProps { label: string; type?: 'approval' | 'sync' | 'default' }
-
 export function ApprovalBadge({ status }: { status: ApprovalStatus }) {
   return (
     <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', approvalColors[status])}>
@@ -29,6 +28,15 @@ export function SyncBadge({ status }: { status: SyncStatus }) {
   return (
     <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', syncColors[status])}>
       {status}
+    </span>
+  )
+}
+
+export function CombinedStatusBadge({ approval_status, sync_status }: { approval_status: ApprovalStatus; sync_status: SyncStatus }) {
+  const combined = toCombinedStatus({ approval_status, sync_status })
+  return (
+    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', COMBINED_STATUS_COLOURS[combined])}>
+      {combined}
     </span>
   )
 }

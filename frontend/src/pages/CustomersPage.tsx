@@ -20,6 +20,7 @@ import { WorkloadForecastFooter } from '@/components/WorkloadForecastFooter'
 import type { Customer, Site, SiteLocation, Asset, MaintenanceSchedule, ServiceTemplate } from '@/types'
 import type { SM8Company } from '@/api/servicem8'
 import { apiClient } from '@/api/client'
+import { toCombinedStatus, COMBINED_STATUS_COLOURS } from '@/lib/jobStatus'
 
 // ─── Customer form ────────────────────────────────────────────────────────────
 
@@ -295,20 +296,6 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
 
 // ─── Schedule history (inline past jobs for a single schedule) ────────────────
 
-const APPROVAL_COLORS: Record<string, string> = {
-  'Approved': 'bg-green-100 text-green-700',
-  'Waiting Approval': 'bg-yellow-100 text-yellow-700',
-  'Refused by Customer': 'bg-red-100 text-red-700',
-  'Cancelled': 'bg-gray-100 text-gray-500',
-}
-
-const SYNC_COLORS: Record<string, string> = {
-  'Completed': 'bg-green-100 text-green-700',
-  'In-Progress': 'bg-blue-100 text-blue-700',
-  'Bypassed': 'bg-orange-100 text-orange-700',
-  'Unsynced': 'bg-gray-100 text-gray-500',
-}
-
 function ScheduleHistory({ scheduleId }: { scheduleId: number }) {
   const { data: instances = [], isLoading } = useQuery({
     queryKey: ['schedule-history', scheduleId],
@@ -324,30 +311,27 @@ function ScheduleHistory({ scheduleId }: { scheduleId: number }) {
         <thead>
           <tr className="text-gray-400 border-b border-gray-200">
             <th className="text-left py-1 font-medium">Month</th>
-            <th className="text-left py-1 font-medium">Approval</th>
-            <th className="text-left py-1 font-medium">Sync</th>
+            <th className="text-left py-1 font-medium">Status</th>
             <th className="text-left py-1 font-medium">SM8 Job</th>
             <th className="text-left py-1 font-medium">Hours</th>
           </tr>
         </thead>
         <tbody>
-          {instances.map((inst) => (
-            <tr key={inst.id} className="border-b border-gray-100 last:border-0">
-              <td className="py-1 font-mono text-gray-600">{inst.target_month_year}</td>
-              <td className="py-1">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${APPROVAL_COLORS[inst.approval_status] ?? 'bg-gray-100 text-gray-500'}`}>
-                  {inst.approval_status}
-                </span>
-              </td>
-              <td className="py-1">
-                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${SYNC_COLORS[inst.sync_status] ?? 'bg-gray-100 text-gray-500'}`}>
-                  {inst.sync_status}
-                </span>
-              </td>
-              <td className="py-1 text-gray-500">{inst.servicem8_job_number != null ? `#${inst.servicem8_job_number}` : '—'}</td>
-              <td className="py-1 text-gray-500">{inst.actual_labor_hours != null ? `${inst.actual_labor_hours}h` : '—'}</td>
-            </tr>
-          ))}
+          {instances.map((inst) => {
+            const combined = toCombinedStatus(inst)
+            return (
+              <tr key={inst.id} className="border-b border-gray-100 last:border-0">
+                <td className="py-1 font-mono text-gray-600">{inst.target_month_year}</td>
+                <td className="py-1">
+                  <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${COMBINED_STATUS_COLOURS[combined]}`}>
+                    {combined}
+                  </span>
+                </td>
+                <td className="py-1 text-gray-500">{inst.servicem8_job_number != null ? `#${inst.servicem8_job_number}` : '—'}</td>
+                <td className="py-1 text-gray-500">{inst.actual_labor_hours != null ? `${inst.actual_labor_hours}h` : '—'}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>

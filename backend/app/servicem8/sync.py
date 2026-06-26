@@ -207,9 +207,11 @@ def _activity_seconds(activity: dict) -> float:
 
 async def consolidate_labor_hours(db: Session) -> dict:
     """
-    For all In-Progress jobs with a servicem8_job_uuid, fetch JobActivity from SM8,
-    sum the hours, mark as Completed, and update template averages.
-    Grouped jobs sharing an SM8 UUID are only fetched once; hours are split evenly.
+    For all In-Progress jobs with a servicem8_job_uuid, fetch JobActivity from SM8 and
+    update actual_labor_hours. Only marks Completed when SM8 reports a done status;
+    if hours exist but the job is still open, sync_status stays In-Progress (UI shows
+    "Job in Progress"). Grouped jobs sharing an SM8 UUID are fetched once; hours are
+    split evenly.
     """
     from app.crud import service_template as crud_template
 
@@ -257,14 +259,16 @@ async def consolidate_labor_hours(db: Session) -> dict:
                 for job in uuid_jobs:
                     if per_job_hours is not None:
                         job.actual_labor_hours = per_job_hours
-                    job.sync_status = "Completed"
-
-                    schedule = db.get(MaintenanceSchedule, job.schedule_id)
-                    if schedule:
-                        from datetime import date
-                        schedule.date_last_done = date.today()
-                        _advance_next_due(schedule)
-                        template_ids_to_recalc.add(schedule.service_id)
+                    if is_done_in_sm8:
+                        job.sync_status = "Completed"
+                        schedule = db.get(MaintenanceSchedule, job.schedule_id)
+                        if schedule:
+                            from datetime import date
+                            schedule.date_last_done = date.today()
+                            _advance_next_due(schedule)
+                            template_ids_to_recalc.add(schedule.service_id)
+                    # else: hours > 0 but not finished — keep sync_status 'In-Progress';
+                    # UI shows this as "Job in Progress" via actual_labor_hours > 0
 
                 db.commit()
                 updated += len(uuid_jobs)

@@ -10,7 +10,7 @@ const COL_HEADERS = [
   { label: 'Asset',                 className: '' },
   { label: 'Template',              className: '' },
   { label: 'Est. / Actual Hrs',     className: 'text-right' },
-  { label: 'Status / Sync',         className: '' },
+  { label: 'Status',                 className: '' },
   { label: 'Instructions / Notes',  className: '' },
   { label: '',                      className: '' },
 ]
