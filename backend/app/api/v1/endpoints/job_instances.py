@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import job_instance as crud
-from app.schemas.job_instance import JobInstanceOut, JobInstanceUpdate, MonthInitResult
+from app.schemas.job_instance import JobInstanceOut, JobInstanceUpdate, MonthInitResult, PriorIncompleteJobInfo
 
 router = APIRouter()
 
@@ -19,7 +19,18 @@ def list_job_instances(
     if month:
         if not MONTH_YEAR_RE.match(month):
             raise HTTPException(400, "month must be in YYYY-MM format")
-        return crud.get_by_month(db, month)
+        jobs = crud.get_by_month(db, month)
+        prior_map = crud.get_prior_incomplete_job_map(db, [j.schedule_id for j in jobs], month)
+        result = []
+        for j in jobs:
+            out = JobInstanceOut.model_validate(j)
+            prior = prior_map.get(j.schedule_id)
+            if prior:
+                out.prior_incomplete_job = PriorIncompleteJobInfo(
+                    month=prior[0], approval_status=prior[1], sync_status=prior[2]
+                )
+            result.append(out)
+        return result
     from sqlalchemy import select
     from app.models.job_instance import JobInstance
     return db.execute(select(JobInstance)).scalars().all()

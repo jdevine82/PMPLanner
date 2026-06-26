@@ -58,6 +58,7 @@ def create_template_manual(
     return crud.create(
         db, data.title, data.content, None,
         interval_months=data.interval_months,
+        default_estimated_labor_hours=data.default_estimated_labor_hours,
         job_description=data.job_description,
         work_completed=data.work_completed,
         attachments=data.attachments,

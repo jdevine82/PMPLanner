@@ -5,16 +5,20 @@ from pydantic import BaseModel, ConfigDict
 
 class AssetCreate(BaseModel):
     site_id: int
+    location_id: int | None = None
     servicem8_asset_uuid: str | None = None
     asset_name: str
     serial_number: str | None = None
     model_number: str | None = None
+    is_catch_all: bool = False
 
 
 class AssetUpdate(BaseModel):
+    location_id: int | None = None
     asset_name: str | None = None
     serial_number: str | None = None
     model_number: str | None = None
+    is_catch_all: bool | None = None
 
 
 class AssetOut(BaseModel):
@@ -22,8 +26,10 @@ class AssetOut(BaseModel):
 
     id: int
     site_id: int
+    location_id: int | None
     servicem8_asset_uuid: str | None
     asset_name: str
     serial_number: str | None
     model_number: str | None
+    is_catch_all: bool
     created_at: datetime

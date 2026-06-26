@@ -1,11 +1,16 @@
 import { apiClient } from './client'
-import type { MaintenanceSchedule } from '@/types'
+import type { MaintenanceSchedule, JobInstance } from '@/types'
 
 export const schedulesApi = {
   list: async (assetId?: number): Promise<MaintenanceSchedule[]> => {
     const { data } = await apiClient.get<MaintenanceSchedule[]>('/schedules', {
       params: assetId ? { asset_id: assetId } : {},
     })
+    return data
+  },
+
+  history: async (scheduleId: number): Promise<JobInstance[]> => {
+    const { data } = await apiClient.get<JobInstance[]>(`/schedules/${scheduleId}/history`)
     return data
   },
 

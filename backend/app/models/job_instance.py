@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -39,6 +39,7 @@ class JobInstance(Base):
     refusal_reason: Mapped[str | None] = mapped_column(Text)
     sync_status: Mapped[str] = mapped_column(String(20), default="Unsynced")
     servicem8_job_uuid: Mapped[str | None] = mapped_column(String(255), index=True)
+    servicem8_job_number: Mapped[int | None] = mapped_column(Integer)
     customer_po_link: Mapped[str | None] = mapped_column(String(500))
     actual_labor_hours: Mapped[float | None] = mapped_column(Numeric(5, 2))
     approved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

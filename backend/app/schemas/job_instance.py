@@ -16,6 +16,12 @@ class JobInstanceUpdate(BaseModel):
     approved_by_user_id: int | None = None
 
 
+class PriorIncompleteJobInfo(BaseModel):
+    month: str
+    approval_status: str
+    sync_status: str
+
+
 class JobInstanceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -26,10 +32,12 @@ class JobInstanceOut(BaseModel):
     refusal_reason: str | None
     sync_status: str
     servicem8_job_uuid: str | None
+    servicem8_job_number: int | None
     customer_po_link: str | None
     actual_labor_hours: float | None
     approved_by_user_id: int | None
     created_at: datetime
+    prior_incomplete_job: PriorIncompleteJobInfo | None = None
 
 
 class MonthInitResult(BaseModel):

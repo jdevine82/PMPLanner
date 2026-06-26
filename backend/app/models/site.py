@@ -9,6 +9,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.asset import Asset
     from app.models.customer import Customer
+    from app.models.site_location import SiteLocation
 
 
 class Site(Base):
@@ -23,3 +24,4 @@ class Site(Base):
 
     customer: Mapped["Customer"] = relationship(back_populates="sites")
     assets: Mapped[list["Asset"]] = relationship(back_populates="site", cascade="all, delete-orphan")
+    locations: Mapped[list["SiteLocation"]] = relationship(back_populates="site", cascade="all, delete-orphan", order_by="SiteLocation.name")

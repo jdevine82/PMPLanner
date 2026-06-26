@@ -1,10 +1,13 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import maintenance_schedule as crud
+from app.models.job_instance import JobInstance
+from app.schemas.job_instance import JobInstanceOut
 from app.schemas.maintenance_schedule import MaintenanceScheduleCreate, MaintenanceScheduleOut, MaintenanceScheduleUpdate
 
 router = APIRouter()
@@ -56,6 +59,22 @@ def pull_forward_schedule(schedule_id: int, db: Session = Depends(get_db), _=Dep
         date_next_due=date.today(),
     )
     return crud.update(db, obj, update_data)
+
+
+@router.get("/{schedule_id}/history", response_model=list[JobInstanceOut])
+def get_schedule_history(schedule_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    obj = crud.get(db, schedule_id)
+    if not obj:
+        raise HTTPException(404, "Schedule not found")
+    return (
+        db.execute(
+            select(JobInstance)
+            .where(JobInstance.schedule_id == schedule_id)
+            .order_by(JobInstance.target_month_year.desc())
+        )
+        .scalars()
+        .all()
+    )
 
 
 @router.delete("/{schedule_id}", status_code=204, dependencies=[Depends(require_admin)])

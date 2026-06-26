@@ -165,6 +165,7 @@ function CreateDialog({ onClose, loading, onManual, onUpload }: {
   loading: boolean
   onManual: (title: string, content: string, extras: {
     interval_months: number | null
+    default_estimated_labor_hours: number | null
     job_description: string
     work_completed: string
     attachments: TemplateAttachment[]
@@ -176,6 +177,7 @@ function CreateDialog({ onClose, loading, onManual, onUpload }: {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [intervalMonths, setIntervalMonths] = useState<string>('')
+  const [defaultHours, setDefaultHours] = useState<string>('')
   const [jobDescription, setJobDescription] = useState('')
   const [workCompleted, setWorkCompleted] = useState('')
   const [attachments, setAttachments] = useState<TemplateAttachment[]>([])
@@ -184,9 +186,11 @@ function CreateDialog({ onClose, loading, onManual, onUpload }: {
 
   function submit() {
     const interval = intervalMonths ? parseInt(intervalMonths) : null
+    const estHours = defaultHours ? parseFloat(defaultHours) : null
     if (mode === 'manual') {
       onManual(title, content, {
         interval_months: interval,
+        default_estimated_labor_hours: estHours,
         job_description: jobDescription,
         work_completed: workCompleted,
         attachments,
@@ -221,18 +225,33 @@ function CreateDialog({ onClose, loading, onManual, onUpload }: {
         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. HVAC Quarterly Service" />
       </div>
 
-      <div className="space-y-1">
-        <Label htmlFor="interval">Service Interval</Label>
-        <select
-          id="interval"
-          value={intervalMonths}
-          onChange={(e) => setIntervalMonths(e.target.value)}
-          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">— not set —</option>
-          {INTERVAL_OPTIONS.map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
-        </select>
-        <p className="text-xs text-gray-400">How often this service recurs. Pre-fills the schedule when added to an asset.</p>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="interval">Service Interval</Label>
+          <select
+            id="interval"
+            value={intervalMonths}
+            onChange={(e) => setIntervalMonths(e.target.value)}
+            className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">— not set —</option>
+            {INTERVAL_OPTIONS.map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
+          </select>
+          <p className="text-xs text-gray-400">Pre-fills frequency when added to an asset.</p>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="default_hours">Default Est. Labor Hours</Label>
+          <Input
+            id="default_hours"
+            type="number"
+            min="0"
+            step="0.25"
+            placeholder="e.g. 2.5"
+            value={defaultHours}
+            onChange={(e) => setDefaultHours(e.target.value)}
+          />
+          <p className="text-xs text-gray-400">Pre-fills est. hours when scheduling this service.</p>
+        </div>
       </div>
 
       {mode === 'manual' ? (
@@ -311,6 +330,7 @@ function EditDialog({ template, onClose, loading, onSave }: {
     title: string
     content: string
     interval_months: number | null
+    default_estimated_labor_hours: number | null
     job_description: string
     work_completed: string
     attachments: TemplateAttachment[]
@@ -320,6 +340,7 @@ function EditDialog({ template, onClose, loading, onSave }: {
   const [title, setTitle] = useState(template.title)
   const [content, setContent] = useState(template.parsed_document_text)
   const [intervalMonths, setIntervalMonths] = useState<string>(template.interval_months?.toString() ?? '')
+  const [defaultHours, setDefaultHours] = useState<string>(template.default_estimated_labor_hours?.toString() ?? '')
   const [jobDescription, setJobDescription] = useState(template.job_description ?? '')
   const [workCompleted, setWorkCompleted] = useState(template.work_completed ?? '')
   const [attachments, setAttachments] = useState<TemplateAttachment[]>(template.attachments ?? [])
@@ -332,16 +353,29 @@ function EditDialog({ template, onClose, loading, onSave }: {
         <Input value={title} onChange={(e) => setTitle(e.target.value)} />
       </div>
 
-      <div className="space-y-1">
-        <Label>Service Interval</Label>
-        <select
-          value={intervalMonths}
-          onChange={(e) => setIntervalMonths(e.target.value)}
-          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">— not set —</option>
-          {INTERVAL_OPTIONS.map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
-        </select>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <Label>Service Interval</Label>
+          <select
+            value={intervalMonths}
+            onChange={(e) => setIntervalMonths(e.target.value)}
+            className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">— not set —</option>
+            {INTERVAL_OPTIONS.map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Default Est. Labor Hours</Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.25"
+            placeholder="e.g. 2.5"
+            value={defaultHours}
+            onChange={(e) => setDefaultHours(e.target.value)}
+          />
+        </div>
       </div>
 
       <div className="space-y-1">
@@ -389,7 +423,7 @@ function EditDialog({ template, onClose, loading, onSave }: {
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button
-          onClick={() => onSave({ title, content, interval_months: intervalMonths ? parseInt(intervalMonths) : null, job_description: jobDescription, work_completed: workCompleted, attachments, job_badges: badges })}
+          onClick={() => onSave({ title, content, interval_months: intervalMonths ? parseInt(intervalMonths) : null, default_estimated_labor_hours: defaultHours ? parseFloat(defaultHours) : null, job_description: jobDescription, work_completed: workCompleted, attachments, job_badges: badges })}
           disabled={!title.trim() || loading}
         >
           {loading ? 'Saving…' : 'Save Changes'}
@@ -485,10 +519,11 @@ export default function TemplatesPage() {
     mutationFn: ({ title, content, extras }: {
       title: string
       content: string
-      extras: { interval_months: number | null; job_description: string; work_completed: string; attachments: TemplateAttachment[]; job_badges: SM8Badge[] }
+      extras: { interval_months: number | null; default_estimated_labor_hours: number | null; job_description: string; work_completed: string; attachments: TemplateAttachment[]; job_badges: SM8Badge[] }
     }) =>
       templatesApi.createManual(title, content, {
         interval_months: extras.interval_months,
+        default_estimated_labor_hours: extras.default_estimated_labor_hours,
         job_description: extras.job_description || null,
         work_completed: extras.work_completed || null,
         attachments: extras.attachments.length ? extras.attachments : null,
@@ -511,6 +546,7 @@ export default function TemplatesPage() {
         title: string
         content: string
         interval_months: number | null
+        default_estimated_labor_hours: number | null
         job_description: string
         work_completed: string
         attachments: TemplateAttachment[]
@@ -521,6 +557,7 @@ export default function TemplatesPage() {
         title: data.title,
         parsed_document_text: data.content,
         interval_months: data.interval_months,
+        default_estimated_labor_hours: data.default_estimated_labor_hours,
         job_description: data.job_description || null,
         work_completed: data.work_completed || null,
         attachments: data.attachments.length ? data.attachments : null,
@@ -582,8 +619,10 @@ export default function TemplatesPage() {
                   <p className="font-medium text-gray-800 truncate">{t.title}</p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
                     <p className="text-xs text-gray-400">
-                      {t.interval_months ? `Every ${t.interval_months}mo · ` : ''}Avg {t.historical_average_labor_hours}h
-                      {t.original_filename ? ` · ${t.original_filename}` : t.parsed_document_text ? ' · manual entry' : ' · no content yet'}
+                      {t.interval_months ? `Every ${t.interval_months}mo · ` : ''}
+                      {t.default_estimated_labor_hours != null ? `Est. ${t.default_estimated_labor_hours}h · ` : ''}
+                      {t.historical_average_labor_hours > 0 ? `Avg ${t.historical_average_labor_hours}h · ` : ''}
+                      {t.original_filename ? t.original_filename : t.parsed_document_text ? 'manual entry' : 'no content yet'}
                     </p>
                     {t.attachments && t.attachments.length > 0 && (
                       <span className="inline-flex items-center gap-1 text-xs text-blue-500">

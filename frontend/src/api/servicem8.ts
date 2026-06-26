@@ -10,6 +10,12 @@ export interface SM8Company {
   email: string | null
 }
 
+export interface SM8CompanyDetail {
+  uuid: string
+  name: string
+  address: string
+}
+
 export interface SM8Asset {
   uuid: string
   name: string
@@ -26,6 +32,11 @@ export interface DispatchResult {
 export const servicem8Api = {
   searchCompanies: async (term: string): Promise<SM8Company[]> => {
     const { data } = await apiClient.get<SM8Company[]>('/servicem8/search-companies', { params: { term } })
+    return data
+  },
+
+  getCompany: async (companyUuid: string): Promise<SM8CompanyDetail> => {
+    const { data } = await apiClient.get<SM8CompanyDetail>(`/servicem8/company/${companyUuid}`)
     return data
   },
 

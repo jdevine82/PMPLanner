@@ -2,6 +2,7 @@
 Dispatch approved jobs to ServiceM8 and pull back completed labor hours.
 Runs as a FastAPI BackgroundTask so the HTTP response returns immediately.
 """
+import asyncio
 import json
 import logging
 from collections import defaultdict
@@ -10,6 +11,7 @@ from typing import Callable
 from sqlalchemy.orm import Session
 
 from app.models.asset import Asset
+from app.models.customer import Customer
 from app.models.job_instance import JobInstance
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.service_template import ServiceTemplate
@@ -29,14 +31,23 @@ def _badge_uuids(template: ServiceTemplate | None) -> list[str]:
     ]
 
 
-async def _dispatch_single(db: Session, job: JobInstance) -> str:
-    """Create one SM8 Work Order for a single job instance. Returns SM8 UUID."""
-    schedule = db.get(MaintenanceSchedule, job.schedule_id)
-    asset    = db.get(Asset, schedule.asset_id)
-    site     = db.get(Site, asset.site_id)
-    template = db.get(ServiceTemplate, schedule.service_id)
+def _resolve_sm8_uuid(db: Session, site: Site) -> str | None:
+    """Return the effective SM8 company UUID for a site: prefer site-level, fall back to customer-level."""
+    if site.servicem8_client_uuid:
+        return site.servicem8_client_uuid
+    customer = db.get(Customer, site.customer_id)
+    return customer.servicem8_uuid if customer else None
 
-    if not site.servicem8_client_uuid:
+
+async def _dispatch_single(db: Session, job: JobInstance) -> tuple[str, int | None]:
+    """Create one SM8 Work Order for a single job instance. Returns (SM8 UUID, job number)."""
+    schedule   = db.get(MaintenanceSchedule, job.schedule_id)
+    asset      = db.get(Asset, schedule.asset_id)
+    site       = db.get(Site, asset.site_id)
+    template   = db.get(ServiceTemplate, schedule.service_id)
+    sm8_uuid   = _resolve_sm8_uuid(db, site)
+
+    if not sm8_uuid:
         raise ValueError(f"Site {site.id} has no ServiceM8 UUID")
 
     checklist_lines = [
@@ -48,7 +59,7 @@ async def _dispatch_single(db: Session, job: JobInstance) -> str:
 
     payload = {
         "status": "Work Order",
-        "company_uuid": site.servicem8_client_uuid,
+        "company_uuid": sm8_uuid,
         "job_address": site.site_address,
         "description": "\n".join(checklist_lines),
         "job_description": (template.job_description or "") if template else "",
@@ -58,15 +69,16 @@ async def _dispatch_single(db: Session, job: JobInstance) -> str:
     return await sm8.create_job(db, payload)
 
 
-async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> str:
-    """Create one SM8 Work Order for a group of job instances. Returns SM8 UUID."""
-    first_job = group_jobs[0]
+async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> tuple[str, int | None]:
+    """Create one SM8 Work Order for a group of job instances. Returns (SM8 UUID, job number)."""
+    first_job      = group_jobs[0]
     first_schedule = db.get(MaintenanceSchedule, first_job.schedule_id)
     first_asset    = db.get(Asset, first_schedule.asset_id)
     site           = db.get(Site, first_asset.site_id)
     template       = db.get(ServiceTemplate, first_schedule.service_id)
+    sm8_uuid       = _resolve_sm8_uuid(db, site)
 
-    if not site.servicem8_client_uuid:
+    if not sm8_uuid:
         raise ValueError(f"Site {site.id} has no ServiceM8 UUID")
 
     # Collect all asset names and total estimated hours across the group
@@ -90,7 +102,7 @@ async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> str:
 
     payload = {
         "status": "Work Order",
-        "company_uuid": site.servicem8_client_uuid,
+        "company_uuid": sm8_uuid,
         "job_address": site.site_address,
         "description": "\n".join(checklist_lines),
         "job_description": (template.job_description or "") if template else "",
@@ -137,12 +149,13 @@ async def dispatch_approved_jobs(db: Session, notify: Callable[[str], None] | No
             schedule = db.get(MaintenanceSchedule, job.schedule_id)
             asset    = db.get(Asset, schedule.asset_id)
             site     = db.get(Site, asset.site_id)
-            if not site.servicem8_client_uuid:
+            if not _resolve_sm8_uuid(db, site):
                 logger.warning("Job %d skipped — site %d has no ServiceM8 UUID", job.id, site.id)
                 skipped += 1
                 continue
-            sm8_uuid = await _dispatch_single(db, job)
+            sm8_uuid, job_number = await _dispatch_single(db, job)
             job.servicem8_job_uuid = sm8_uuid
+            job.servicem8_job_number = job_number
             job.sync_status = "In-Progress"
             db.commit()
             synced += 1
@@ -153,9 +166,10 @@ async def dispatch_approved_jobs(db: Session, notify: Callable[[str], None] | No
     # Dispatch grouped jobs — one SM8 job per group
     for group_key, group_jobs in grouped.items():
         try:
-            sm8_uuid = await _dispatch_group(db, group_jobs)
+            sm8_uuid, job_number = await _dispatch_group(db, group_jobs)
             for job in group_jobs:
                 job.servicem8_job_uuid = sm8_uuid
+                job.servicem8_job_number = job_number
                 job.sync_status = "In-Progress"
             db.commit()
             synced += len(group_jobs)
@@ -164,6 +178,31 @@ async def dispatch_approved_jobs(db: Session, notify: Callable[[str], None] | No
             failed += len(group_jobs)
 
     return {"dispatched": synced, "failed": failed, "skipped": skipped}
+
+
+def _activity_seconds(activity: dict) -> float:
+    """Return the duration in seconds for a job activity.
+
+    Prefers total_duration_seconds when present and non-zero; falls back to
+    computing the delta from start_date/end_date for accounts that don't use
+    check-in/check-out (where total_duration_seconds is null or missing)."""
+    secs = activity.get("total_duration_seconds")
+    if secs:
+        try:
+            return float(secs)
+        except (TypeError, ValueError):
+            pass
+    start = activity.get("start_date") or ""
+    end = activity.get("end_date") or ""
+    if start and end:
+        from datetime import datetime
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                delta = datetime.strptime(end, fmt) - datetime.strptime(start, fmt)
+                return max(0.0, delta.total_seconds())
+            except ValueError:
+                continue
+    return 0.0
 
 
 async def consolidate_labor_hours(db: Session) -> dict:
@@ -191,16 +230,33 @@ async def consolidate_labor_hours(db: Session) -> dict:
     updated = 0
     failed = 0
 
+    SM8_DONE_STATUSES = {"Completed", "Unsuccessful"}
+
     for sm8_uuid, uuid_jobs in by_uuid.items():
         try:
-            activities = await sm8.fetch_job_activities(db, sm8_uuid)
-            total_seconds = sum(float(a.get("total_duration_seconds", 0) or 0) for a in activities)
+            sm8_job, activities = await asyncio.gather(
+                sm8.fetch_job(db, sm8_uuid),
+                sm8.fetch_job_activities(db, sm8_uuid),
+            )
+
+            sm8_status = (sm8_job or {}).get("status", "")
+            is_done_in_sm8 = sm8_status in SM8_DONE_STATUSES
+
+            active_activities = [a for a in activities if str(a.get("active", "1")) != "0"]
+            total_seconds = sum(_activity_seconds(a) for a in active_activities)
             total_hours = round(total_seconds / 3600, 2)
 
-            if total_hours > 0:
-                per_job_hours = round(total_hours / len(uuid_jobs), 2)
+            logger.info(
+                "SM8 job %s: status=%r, activities=%d (active=%d), total_hours=%.2f",
+                sm8_uuid, sm8_status, len(activities), len(active_activities), total_hours,
+            )
+
+            if is_done_in_sm8 or total_hours > 0:
+                per_job_hours = round(total_hours / len(uuid_jobs), 2) if total_hours > 0 else None
+                template_ids_to_recalc: set[int] = set()
                 for job in uuid_jobs:
-                    job.actual_labor_hours = per_job_hours
+                    if per_job_hours is not None:
+                        job.actual_labor_hours = per_job_hours
                     job.sync_status = "Completed"
 
                     schedule = db.get(MaintenanceSchedule, job.schedule_id)
@@ -208,12 +264,15 @@ async def consolidate_labor_hours(db: Session) -> dict:
                         from datetime import date
                         schedule.date_last_done = date.today()
                         _advance_next_due(schedule)
-                        template = crud_template.get(db, schedule.service_id)
-                        if template:
-                            crud_template.recalculate_average_hours(db, template)
+                        template_ids_to_recalc.add(schedule.service_id)
 
                 db.commit()
                 updated += len(uuid_jobs)
+
+                for tid in template_ids_to_recalc:
+                    template = crud_template.get(db, tid)
+                    if template:
+                        crud_template.recalculate_average_hours(db, template)
 
         except Exception as exc:
             logger.error("Labor consolidation failed for SM8 job %s: %s", sm8_uuid, exc)

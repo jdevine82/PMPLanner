@@ -5,6 +5,7 @@ export interface TemplateUpdatePayload {
   title?: string
   parsed_document_text?: string
   interval_months?: number | null
+  default_estimated_labor_hours?: number | null
   job_description?: string | null
   work_completed?: string | null
   attachments?: TemplateAttachment[] | null

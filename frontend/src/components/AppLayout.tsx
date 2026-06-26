@@ -7,7 +7,7 @@ import { NewProgramWizard } from './NewProgramWizard'
 
 const navItems = [
   { to: '/',           label: 'Dashboard',  icon: LayoutDashboard },
-  { to: '/customers',  label: 'Customers',  icon: Building2 },
+  { to: '/customers',  label: 'PM Schedules', icon: Building2 },
   { to: '/templates',  label: 'Services',   icon: FileText },
   { to: '/reports',    label: 'Reports',    icon: BarChart2 },
   { to: '/settings',   label: 'Settings',   icon: Settings, adminOnly: true },

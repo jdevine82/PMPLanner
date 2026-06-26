@@ -23,13 +23,22 @@ export interface Site {
   created_at: string
 }
 
+export interface SiteLocation {
+  id: number
+  site_id: number
+  name: string
+  created_at: string
+}
+
 export interface Asset {
   id: number
   site_id: number
+  location_id: number | null
   servicem8_asset_uuid: string | null
   asset_name: string
   serial_number: string | null
   model_number: string | null
+  is_catch_all: boolean
   created_at: string
 }
 
@@ -50,6 +59,7 @@ export interface ServiceTemplate {
   parsed_document_text: string
   original_filename: string | null
   interval_months: number | null
+  default_estimated_labor_hours: number | null
   historical_average_labor_hours: number
   job_description: string | null
   work_completed: string | null
@@ -74,6 +84,12 @@ export interface MaintenanceSchedule {
 export type ApprovalStatus = 'Waiting Approval' | 'Approved' | 'Refused by Customer' | 'Cancelled'
 export type SyncStatus = 'Unsynced' | 'In-Progress' | 'Completed' | 'Bypassed'
 
+export interface PriorIncompleteJob {
+  month: string
+  approval_status: ApprovalStatus
+  sync_status: SyncStatus
+}
+
 export interface JobInstance {
   id: number
   schedule_id: number
@@ -82,10 +98,12 @@ export interface JobInstance {
   refusal_reason: string | null
   sync_status: SyncStatus
   servicem8_job_uuid: string | null
+  servicem8_job_number: number | null
   customer_po_link: string | null
   actual_labor_hours: number | null
   approved_by_user_id: number | null
   created_at: string
+  prior_incomplete_job: PriorIncompleteJob | null
 }
 
 export interface JobComment {

@@ -79,6 +79,21 @@ async def search_companies(term: str = Query(..., min_length=2), db: Session = D
     return [{"uuid": c.get("uuid"), "name": c.get("name"), "phone": c.get("phone"), "email": c.get("email")} for c in results]
 
 
+@router.get("/company/{company_uuid}")
+async def get_company(company_uuid: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    try:
+        c = await sm8.fetch_company(db, company_uuid)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"ServiceM8 error: {e}")
+    if not c:
+        raise HTTPException(404, "Company not found")
+    parts = [c.get("address"), c.get("city"), c.get("state"), c.get("post_code")]
+    address = ", ".join(p for p in parts if p)
+    return {"uuid": c.get("uuid"), "name": c.get("name"), "address": address}
+
+
 @router.get("/company-assets/{company_uuid}")
 async def company_assets(company_uuid: str, db: Session = Depends(get_db), _=Depends(get_current_user)):
     try:
@@ -124,7 +139,12 @@ async def consolidate_hours(background_tasks: BackgroundTasks, db: Session = Dep
 
 @router.post("/consolidate-hours/sync")
 async def consolidate_hours_sync(db: Session = Depends(get_db), _=Depends(require_staff)):
-    result = await consolidate_labor_hours(db)
+    try:
+        result = await consolidate_labor_hours(db)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"ServiceM8 error: {e}")
     return result
 
 

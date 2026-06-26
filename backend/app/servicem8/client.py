@@ -82,6 +82,13 @@ async def search_companies(db: Session, term: str) -> list[dict]:
         return [c for c in r.json() if c.get("active") == 1]
 
 
+async def fetch_company(db: Session, company_uuid: str) -> dict | None:
+    async with make_client(db) as client:
+        r = await client.get(f"/company/{company_uuid}.json")
+        r.raise_for_status()
+        return r.json()
+
+
 async def fetch_assets_for_company(db: Session, company_uuid: str) -> list[dict]:
     async with make_client(db) as client:
         r = await client.get("/asset.json", params={"$filter": f"company_uuid eq '{company_uuid}'"})
@@ -89,13 +96,28 @@ async def fetch_assets_for_company(db: Session, company_uuid: str) -> list[dict]
         return [a for a in r.json() if a.get("active") == 1]
 
 
-async def create_job(db: Session, payload: dict) -> str:
-    """POST a job to ServiceM8. Returns the new job UUID extracted from the Location header."""
+async def create_job(db: Session, payload: dict) -> tuple[str, int | None]:
+    """POST a job to ServiceM8. Returns (uuid, job_number) where job_number is the generated_job_id."""
     async with make_client(db) as client:
         r = await client.post("/job.json", json=payload)
         r.raise_for_status()
-        location = r.headers.get("Location", "")
-        return location.rstrip("/").split("/")[-1].replace(".json", "")
+        uuid = r.headers.get("x-record-uuid", "")
+        job_number = None
+        if uuid:
+            job_r = await client.get(f"/job/{uuid}.json")
+            if job_r.is_success:
+                val = job_r.json().get("generated_job_id")
+                if val is not None:
+                    job_number = int(val)
+        return uuid, job_number
+
+
+async def fetch_job(db: Session, sm8_job_uuid: str) -> dict | None:
+    async with make_client(db) as client:
+        r = await client.get(f"/job/{sm8_job_uuid}.json")
+        if not r.is_success:
+            return None
+        return r.json()
 
 
 async def fetch_job_activities(db: Session, sm8_job_uuid: str) -> list[dict]:

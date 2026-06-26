@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Trash2, MessageSquare, Layers } from 'lucide-react'
+import { AlertTriangle, Trash2, MessageSquare, Layers, Clock } from 'lucide-react'
 import { jobsApi } from '@/api/jobs'
 import { schedulesApi } from '@/api/schedules'
 import { ApprovalBadge } from '@/components/ui/Badge'
@@ -16,6 +16,12 @@ interface Props {
   onOpenDetail: (row: DashboardRow) => void
   onDelete?: (ids: number[]) => void
   commentCount?: number
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function formatMonth(yyyyMM: string): string {
+  const [year, month] = yyyyMM.split('-')
+  return `${MONTH_NAMES[parseInt(month) - 1]} ${year}`
 }
 
 const APPROVAL_OPTIONS: ApprovalStatus[] = ['Waiting Approval', 'Approved', 'Refused by Customer', 'Cancelled']
@@ -95,6 +101,10 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
     statusMutation.mutate({ approval_status: newStatus })
   }
 
+  function handleSyncStatusChange(newStatus: SyncStatus) {
+    statusMutation.mutate({ sync_status: newStatus })
+  }
+
   function submitRefusal() {
     if (!pendingRefusal.trim()) return
     statusMutation.mutate({ approval_status: 'Refused by Customer', refusal_reason: pendingRefusal.trim() })
@@ -104,6 +114,13 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
 
   const isRefused = job.approval_status === 'Refused by Customer'
   const syncStatus = job.sync_status as SyncStatus
+
+  const priorIncomplete = allRows
+    .map((r) => r.job.prior_incomplete_job)
+    .filter((p): p is NonNullable<typeof p> => p != null)
+  const priorIncompleteTooltip = priorIncomplete.length === 1
+    ? `Incomplete job from ${formatMonth(priorIncomplete[0].month)} — ${priorIncomplete[0].approval_status}`
+    : `${priorIncomplete.length} assets have incomplete prior jobs`
 
   // Asset display
   const assetLabel = isGrouped
@@ -151,7 +168,14 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
           onClick={() => onOpenDetail(row)}
         >
           <p className="truncate text-xs text-gray-600">{template.title}</p>
-          <p className="text-xs text-gray-400">{schedule.frequency_months}mo</p>
+          <div className="flex items-center gap-1">
+            <p className="text-xs text-gray-400">{schedule.frequency_months}mo</p>
+            {priorIncomplete.length > 0 && (
+              <span title={priorIncompleteTooltip}>
+                <Clock className="h-3 w-3 text-amber-500 shrink-0" />
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Hours — editable (grouped: read-only sum) */}
@@ -186,9 +210,20 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
               {APPROVAL_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
-          <span className={cn('mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-medium', SYNC_COLOURS[syncStatus])}>
-            {syncStatus}
-          </span>
+          <div className="mt-0.5 flex items-center gap-1 min-w-0">
+            <select
+              value={syncStatus}
+              onChange={(e) => handleSyncStatusChange(e.target.value as SyncStatus)}
+              className={cn('flex-1 min-w-0 rounded-full px-1.5 py-px text-[10px] font-medium border-0 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer', SYNC_COLOURS[syncStatus])}
+            >
+              {(['Unsynced', 'In-Progress', 'Completed', 'Bypassed'] as SyncStatus[]).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            {job.servicem8_job_number != null && (
+              <span className="shrink-0 text-[10px] font-mono text-blue-500">#{job.servicem8_job_number}</span>
+            )}
+          </div>
         </div>
 
         {/* Notes — editable (grouped: shows lead's notes) */}

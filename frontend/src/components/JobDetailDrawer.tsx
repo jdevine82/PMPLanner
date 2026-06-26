@@ -76,6 +76,9 @@ export function JobDetailDrawer({ row, onClose }: Props) {
             {customer?.company_name} → {site?.site_name}
           </p>
           <p className="mt-0.5 text-xs font-medium text-gray-700 truncate">{template?.title}</p>
+          {leadRow?.job.servicem8_job_number != null && (
+            <p className="mt-0.5 text-xs text-blue-600 font-mono">SM8 #{leadRow.job.servicem8_job_number}</p>
+          )}
         </div>
         <button onClick={onClose} className="rounded p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 shrink-0">
           <X className="h-4 w-4" />

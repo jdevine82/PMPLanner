@@ -4,15 +4,17 @@ import { CheckCircle2, ChevronRight, Search, X } from 'lucide-react'
 import { customersApi } from '@/api/customers'
 import { sitesApi } from '@/api/sites'
 import { assetsApi } from '@/api/assets'
+import { siteLocationsApi } from '@/api/siteLocations'
 import { schedulesApi } from '@/api/schedules'
 import { templatesApi } from '@/api/templates'
+import { servicem8Api } from '@/api/servicem8'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
 import { useToast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
-import type { Customer, Site, Asset } from '@/types'
+import type { Customer, Site, SiteLocation, Asset } from '@/types'
 
 type Step = 'customer' | 'site' | 'asset' | 'schedule'
 
@@ -44,6 +46,8 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
   const [newCustomer, setNewCustomer] = useState(false)
   const [newSite, setNewSite] = useState(false)
   const [newAsset, setNewAsset] = useState(false)
+  const [newAssetLocationId, setNewAssetLocationId] = useState<number | null>(null)
+  const [catchAllMode, setCatchAllMode] = useState(false)
 
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false)
@@ -71,6 +75,15 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
     date_last_done: '',
     permanent_custom_instructions: '',
   })
+  const [catchAllForm, setCatchAllForm] = useState({
+    label: '',
+    service_id: 0,
+    estimated_labor_hours: '1',
+    frequency_months: '3',
+    date_next_due: today,
+    date_last_done: '',
+    permanent_custom_instructions: '',
+  })
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers', 'all'],
@@ -88,6 +101,12 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
   const { data: assets = [] } = useQuery({
     queryKey: ['assets', selectedSite?.id],
     queryFn: () => assetsApi.list(selectedSite!.id),
+    enabled: !!selectedSite,
+  })
+
+  const { data: locations = [] } = useQuery<SiteLocation[]>({
+    queryKey: ['site-locations', selectedSite?.id],
+    queryFn: () => siteLocationsApi.list(selectedSite!.id),
     enabled: !!selectedSite,
   })
 
@@ -130,6 +149,38 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
     onError: () => toast('Failed to create asset', 'error'),
   })
 
+  const createCatchAllService = useMutation({
+    mutationFn: async () => {
+      const serviceId = catchAllForm.service_id || templates[0]?.id || 0
+      const asset = await assetsApi.create({
+        site_id: selectedSite!.id,
+        location_id: null,
+        asset_name: catchAllForm.label.trim(),
+        serial_number: null,
+        model_number: null,
+        is_catch_all: true,
+      })
+      await schedulesApi.create({
+        asset_id: asset.id,
+        service_id: serviceId,
+        estimated_labor_hours: parseFloat(catchAllForm.estimated_labor_hours) || 1,
+        frequency_months: parseInt(catchAllForm.frequency_months) || 3,
+        date_next_due: catchAllForm.date_next_due,
+        date_last_done: catchAllForm.date_last_done || null,
+        permanent_custom_instructions: catchAllForm.permanent_custom_instructions || null,
+        sm8_group_tag: null,
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['assets'] })
+      qc.invalidateQueries({ queryKey: ['schedules'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      toast('Maintenance program created!')
+      handleClose()
+    },
+    onError: () => toast('Failed to create location service', 'error'),
+  })
+
   const createSchedule = useMutation({
     mutationFn: schedulesApi.create,
     onSuccess: () => {
@@ -149,12 +200,15 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
     setNewCustomer(false)
     setNewSite(false)
     setNewAsset(false)
+    setNewAssetLocationId(null)
+    setCatchAllMode(false)
     setCustomerSearch('')
     setCustomerDropdownOpen(false)
     setCustomerForm({ company_name: '', primary_contact: '', phone: '', email: '' })
     setSiteForm({ site_name: '', site_address: '' })
     setAssetForm({ asset_name: '', serial_number: '', model_number: '' })
     setScheduleForm({ service_id: 0, estimated_labor_hours: '1', frequency_months: '3', date_next_due: today, date_last_done: '', permanent_custom_instructions: '' })
+    setCatchAllForm({ label: '', service_id: 0, estimated_labor_hours: '1', frequency_months: '3', date_next_due: today, date_last_done: '', permanent_custom_instructions: '' })
   }
 
   function handleClose() {
@@ -195,9 +249,11 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
     if (newAsset) {
       createAsset.mutate({
         site_id: selectedSite!.id,
+        location_id: newAssetLocationId,
         asset_name: assetForm.asset_name,
         serial_number: assetForm.serial_number || null,
         model_number: assetForm.model_number || null,
+        is_catch_all: false,
       })
     } else if (selectedAsset) {
       setStep('schedule')
@@ -364,7 +420,24 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
                 </select>
                 {sites.length === 0 && <p className="text-xs text-gray-400 mt-1">No sites yet — create one below.</p>}
               </div>
-              <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => { setNewSite(true); setSelectedSite(null) }}>
+              <button
+                type="button"
+                className="text-sm text-blue-600 hover:underline"
+                onClick={async () => {
+                  setNewSite(true)
+                  setSelectedSite(null)
+                  if (selectedCustomer?.servicem8_uuid) {
+                    try {
+                      const company = await servicem8Api.getCompany(selectedCustomer.servicem8_uuid)
+                      if (company.address) {
+                        setSiteForm((p) => ({ ...p, site_address: company.address }))
+                      }
+                    } catch {
+                      // silently ignore — address prefill is best-effort
+                    }
+                  }
+                }}
+              >
                 + Create new site instead
               </button>
             </>
@@ -400,51 +473,182 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
             {' › '}
             <span className="font-medium text-gray-800">{selectedSite?.site_name}</span>
           </p>
-          {!newAsset ? (
+
+          {/* Catch-all / location service mode */}
+          {catchAllMode ? (
             <>
+              <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700">Location Service (no specific asset)</div>
               <div className="space-y-1">
-                <Label>Select existing asset *</Label>
-                <select
-                  className={SELECT_CLASS}
-                  value={selectedAsset?.id ?? ''}
-                  onChange={(e) => setSelectedAsset(assets.find((a) => a.id === Number(e.target.value)) ?? null)}
-                >
-                  <option value="">— choose asset —</option>
-                  {assets.map((a) => (
-                    <option key={a.id} value={a.id}>{a.asset_name}{a.serial_number ? ` (S/N: ${a.serial_number})` : ''}</option>
-                  ))}
-                </select>
-                {assets.length === 0 && <p className="text-xs text-gray-400 mt-1">No assets yet — create one below.</p>}
+                <Label>Description *</Label>
+                <Input
+                  value={catchAllForm.label}
+                  onChange={(e) => setCatchAllForm((p) => ({ ...p, label: e.target.value }))}
+                  placeholder="e.g. All Air Conditioners, General Plumbing…"
+                />
+                <p className="text-xs text-gray-400">A short label for this site-wide service.</p>
               </div>
-              <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => { setNewAsset(true); setSelectedAsset(null) }}>
-                + Create new asset instead
+              <div className="border-t border-gray-100 pt-3 space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Maintenance Schedule</p>
+                {templates.length === 0 ? (
+                  <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-3 text-sm text-amber-700">
+                    No services found. Create one in the Services page first.
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <Label>Service *</Label>
+                      <select
+                        className={SELECT_CLASS}
+                        value={catchAllForm.service_id || templates[0]?.id || 0}
+                        onChange={(e) => setCatchAllForm((p) => ({ ...p, service_id: Number(e.target.value) }))}
+                      >
+                        {templates.map((t) => <option key={t.id} value={t.id}>{t.title}{t.interval_months ? ` (every ${t.interval_months}mo)` : ''}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label>Est. Labor Hours *</Label>
+                        <Input type="number" min="0" step="0.25" value={catchAllForm.estimated_labor_hours}
+                          onChange={(e) => setCatchAllForm((p) => ({ ...p, estimated_labor_hours: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Frequency *</Label>
+                        <select className={SELECT_CLASS} value={catchAllForm.frequency_months}
+                          onChange={(e) => setCatchAllForm((p) => ({ ...p, frequency_months: e.target.value }))}>
+                          {[1, 3, 6, 12, 24].map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label>Next Due Date *</Label>
+                        <Input type="date" value={catchAllForm.date_next_due}
+                          onChange={(e) => setCatchAllForm((p) => ({ ...p, date_next_due: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Last Done Date</Label>
+                        <Input type="date" value={catchAllForm.date_last_done}
+                          onChange={(e) => setCatchAllForm((p) => ({ ...p, date_last_done: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Custom Instructions</Label>
+                      <textarea className={SELECT_CLASS} rows={2}
+                        value={catchAllForm.permanent_custom_instructions}
+                        onChange={(e) => setCatchAllForm((p) => ({ ...p, permanent_custom_instructions: e.target.value }))}
+                        placeholder="Permanent notes for technicians…" />
+                    </div>
+                  </>
+                )}
+              </div>
+              <button type="button" className="text-sm text-gray-500 hover:underline" onClick={() => setCatchAllMode(false)}>
+                Back to asset selection
               </button>
+              <div className="flex justify-between pt-2">
+                <Button variant="outline" onClick={() => setStep('site')}>Back</Button>
+                <Button
+                  onClick={() => createCatchAllService.mutate()}
+                  disabled={
+                    createCatchAllService.isPending ||
+                    !catchAllForm.label.trim() ||
+                    !catchAllForm.date_next_due ||
+                    templates.length === 0
+                  }
+                >
+                  {createCatchAllService.isPending ? 'Creating…' : 'Create Maintenance Program'}
+                </Button>
+              </div>
             </>
           ) : (
             <>
-              <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-sm font-medium text-blue-700">New Asset</div>
-              {(['asset_name', 'serial_number', 'model_number'] as const).map((k) => (
-                <div key={k} className="space-y-1">
-                  <Label>{k === 'asset_name' ? 'Asset Name *' : k === 'serial_number' ? 'Serial Number' : 'Model Number'}</Label>
-                  <Input value={assetForm[k]} onChange={(e) => setAssetForm((p) => ({ ...p, [k]: e.target.value }))} />
-                </div>
-              ))}
-              <button type="button" className="text-sm text-gray-500 hover:underline" onClick={() => setNewAsset(false)}>Back to existing assets</button>
+              {!newAsset ? (
+                <>
+                  <div className="space-y-1">
+                    <Label>Select existing asset *</Label>
+                    <select
+                      className={SELECT_CLASS}
+                      value={selectedAsset?.id ?? ''}
+                      onChange={(e) => setSelectedAsset(assets.find((a) => a.id === Number(e.target.value)) ?? null)}
+                    >
+                      <option value="">— choose asset —</option>
+                      {locations.length > 0 ? (
+                        <>
+                          {locations.map((loc) => {
+                            const locAssets = assets.filter((a) => a.location_id === loc.id)
+                            if (locAssets.length === 0) return null
+                            return (
+                              <optgroup key={loc.id} label={loc.name}>
+                                {locAssets.map((a) => (
+                                  <option key={a.id} value={a.id}>{a.asset_name}{a.serial_number ? ` (S/N: ${a.serial_number})` : ''}</option>
+                                ))}
+                              </optgroup>
+                            )
+                          })}
+                          {assets.filter((a) => a.location_id == null).length > 0 && (
+                            <optgroup label="Unassigned">
+                              {assets.filter((a) => a.location_id == null).map((a) => (
+                                <option key={a.id} value={a.id}>{a.asset_name}{a.serial_number ? ` (S/N: ${a.serial_number})` : ''}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      ) : (
+                        assets.map((a) => (
+                          <option key={a.id} value={a.id}>{a.asset_name}{a.serial_number ? ` (S/N: ${a.serial_number})` : ''}</option>
+                        ))
+                      )}
+                    </select>
+                    {assets.length === 0 && <p className="text-xs text-gray-400 mt-1">No assets yet — create one below.</p>}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <button type="button" className="text-sm text-blue-600 hover:underline text-left" onClick={() => { setNewAsset(true); setSelectedAsset(null) }}>
+                      + Create new asset instead
+                    </button>
+                    <button type="button" className="text-sm text-amber-600 hover:underline text-left" onClick={() => { setCatchAllMode(true); setNewAsset(false); setSelectedAsset(null) }}>
+                      + Add a location service (no specific asset)
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-sm font-medium text-blue-700">New Asset</div>
+                  {(['asset_name', 'serial_number', 'model_number'] as const).map((k) => (
+                    <div key={k} className="space-y-1">
+                      <Label>{k === 'asset_name' ? 'Asset Name *' : k === 'serial_number' ? 'Serial Number' : 'Model Number'}</Label>
+                      <Input value={assetForm[k]} onChange={(e) => setAssetForm((p) => ({ ...p, [k]: e.target.value }))} />
+                    </div>
+                  ))}
+                  {locations.length > 0 && (
+                    <div className="space-y-1">
+                      <Label>Sublocation</Label>
+                      <select
+                        className={SELECT_CLASS}
+                        value={newAssetLocationId ?? ''}
+                        onChange={(e) => setNewAssetLocationId(e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">— None (unassigned) —</option>
+                        {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <button type="button" className="text-sm text-gray-500 hover:underline" onClick={() => setNewAsset(false)}>Back to existing assets</button>
+                </>
+              )}
+              <div className="flex justify-between pt-2">
+                <Button variant="outline" onClick={() => setStep('site')}>Back</Button>
+                <Button
+                  onClick={handleAssetNext}
+                  disabled={
+                    createAsset.isPending ||
+                    (newAsset && !assetForm.asset_name) ||
+                    (!newAsset && !selectedAsset)
+                  }
+                >
+                  {createAsset.isPending ? 'Creating…' : 'Next'}
+                </Button>
+              </div>
             </>
           )}
-          <div className="flex justify-between pt-2">
-            <Button variant="outline" onClick={() => setStep('site')}>Back</Button>
-            <Button
-              onClick={handleAssetNext}
-              disabled={
-                createAsset.isPending ||
-                (newAsset && !assetForm.asset_name) ||
-                (!newAsset && !selectedAsset)
-              }
-            >
-              {createAsset.isPending ? 'Creating…' : 'Next'}
-            </Button>
-          </div>
         </div>
       )}
 

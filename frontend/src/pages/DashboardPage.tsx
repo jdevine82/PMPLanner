@@ -68,9 +68,16 @@ export default function DashboardPage() {
     mutationFn: servicem8Api.consolidateHoursSync,
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['jobs', month] })
-      toast(`Updated ${result.updated} job(s) with actual labor hours.`)
+      qc.invalidateQueries({ queryKey: ['schedule-history'] })
+      if (result.failed > 0) {
+        toast(`Updated ${result.updated} job(s). ${result.failed} failed — check SM8 API key permissions.`, 'error')
+      } else if (result.updated === 0) {
+        toast('No completed SM8 jobs found to pull. Jobs must be dispatched and marked Completed in ServiceM8 first.')
+      } else {
+        toast(`Updated ${result.updated} job(s) with actual labor hours.`)
+      }
     },
-    onError: () => toast('Labor consolidation failed', 'error'),
+    onError: (e: any) => toast(e?.response?.data?.detail ?? 'Labor consolidation failed — check the SM8 API key.', 'error'),
   })
 
   const deleteMutation = useMutation({
@@ -153,7 +160,7 @@ export default function DashboardPage() {
             <>
               <Button variant="outline" size="sm" onClick={() => consolidateMutation.mutate()} disabled={consolidateMutation.isPending}>
                 <DownloadCloud className="h-3.5 w-3.5" />
-                {consolidateMutation.isPending ? 'Pulling…' : 'Pull Hours'}
+                {consolidateMutation.isPending ? 'Pulling…' : 'Pull SM8 Updates'}
               </Button>
               <Button size="sm" disabled={stats.approved === 0 || syncMutation.isPending} onClick={() => syncMutation.mutate()}>
                 <CheckSquare className="h-3.5 w-3.5" />

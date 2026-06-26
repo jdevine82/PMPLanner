@@ -17,6 +17,20 @@ def _add_months(d: date, months: int) -> date:
     return date(y, m, min(d.day, monthrange(y, m)[1]))
 
 
+def _projects_to_month(date_next_due: date, frequency_months: int, month_start: date, month_end: date) -> bool:
+    """Return True if date_next_due, stepped forward by any number of frequency cycles, lands in [month_start, month_end]."""
+    d = date_next_due
+    if d > month_end:
+        return False
+    if month_start <= d <= month_end:
+        return True
+    # d is before month_start — project forward by the minimum number of cycles needed
+    diff = (month_start.year - d.year) * 12 + (month_start.month - d.month)
+    n = (diff + frequency_months - 1) // frequency_months
+    projected = _add_months(d, n * frequency_months)
+    return month_start <= projected <= month_end
+
+
 def get(db: Session, instance_id: int) -> JobInstance | None:
     return db.get(JobInstance, instance_id)
 
@@ -65,15 +79,22 @@ def initialize_month(db: Session, target_month_year: str) -> MonthInitResult:
     year, month = map(int, target_month_year.split("-"))
     month_start = date(year, month, 1)
     month_end = date(year, month, monthrange(year, month)[1])
+    is_future_month = month_start > date.today()
 
-    schedules = (
+    # Fetch all schedules that could possibly land in this month:
+    # those whose date_next_due is not yet beyond this month's end.
+    candidates = (
         db.query(MaintenanceSchedule)
-        .filter(
-            MaintenanceSchedule.date_next_due >= month_start,
-            MaintenanceSchedule.date_next_due <= month_end,
-        )
+        .filter(MaintenanceSchedule.date_next_due <= month_end)
         .all()
     )
+
+    # Keep only those that project (via their frequency cycle) into the target month.
+    # This handles future months where date_next_due hasn't been advanced yet.
+    schedules = [
+        s for s in candidates
+        if _projects_to_month(s.date_next_due, s.frequency_months, month_start, month_end)
+    ]
 
     # Group by asset so we can apply skip logic: when multiple services for the
     # same asset are due in the same month, only the longest-interval one is done.
@@ -90,7 +111,9 @@ def initialize_month(db: Session, target_month_year: str) -> MonthInitResult:
         for schedule in asset_schedules:
             if schedule.frequency_months < max_interval:
                 # Shorter-interval service superseded this month — advance without creating a job.
-                schedule.date_next_due = _add_months(schedule.date_next_due, schedule.frequency_months)
+                # Only mutate date_next_due for current/past months; future months are just projections.
+                if not is_future_month:
+                    schedule.date_next_due = _add_months(schedule.date_next_due, schedule.frequency_months)
                 continue
 
             existing = (
@@ -109,6 +132,36 @@ def initialize_month(db: Session, target_month_year: str) -> MonthInitResult:
 
     db.commit()
     return MonthInitResult(target_month_year=target_month_year, created_count=created, already_existed=already_existed)
+
+
+def get_prior_incomplete_job_map(
+    db: Session, schedule_ids: list[int], target_month_year: str
+) -> dict[int, tuple[str, str, str]]:
+    """Return {schedule_id: (month, approval_status, sync_status)} for the most recent
+    incomplete job (not Completed / Refused / Cancelled) prior to target_month_year."""
+    if not schedule_ids:
+        return {}
+    rows = (
+        db.query(
+            JobInstance.schedule_id,
+            JobInstance.target_month_year,
+            JobInstance.approval_status,
+            JobInstance.sync_status,
+        )
+        .filter(
+            JobInstance.schedule_id.in_(schedule_ids),
+            JobInstance.target_month_year < target_month_year,
+            JobInstance.sync_status != "Completed",
+            JobInstance.approval_status.notin_(["Refused by Customer", "Cancelled"]),
+        )
+        .order_by(JobInstance.target_month_year.desc())
+        .all()
+    )
+    result: dict[int, tuple[str, str, str]] = {}
+    for schedule_id, month, approval_status, sync_status in rows:
+        if schedule_id not in result:
+            result[schedule_id] = (month, approval_status, sync_status)
+    return result
 
 
 def check_month_has_jobs(db: Session, target_month_year: str) -> bool:

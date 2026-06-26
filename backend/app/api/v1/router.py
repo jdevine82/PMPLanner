@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     reports,
     service_templates,
     servicem8,
+    site_locations,
     sites,
     users,
 )
@@ -22,6 +23,7 @@ api_router.include_router(auth.router,                 prefix="/auth",          
 api_router.include_router(users.router,                prefix="/users",           tags=["Users"])
 api_router.include_router(customers.router,            prefix="/customers",       tags=["Customers"])
 api_router.include_router(sites.router,                prefix="/sites",           tags=["Sites"])
+api_router.include_router(site_locations.router,       prefix="/site-locations",  tags=["Site Locations"])
 api_router.include_router(assets.router,               prefix="/assets",          tags=["Assets"])
 api_router.include_router(service_templates.router,    prefix="/service-templates", tags=["Service Templates"])
 api_router.include_router(maintenance_schedules.router,prefix="/schedules",       tags=["Maintenance Schedules"])

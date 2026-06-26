@@ -116,10 +116,20 @@ function BackupSection() {
 
 function ConsolidateSection() {
   const { toast } = useToast()
+  const qc = useQueryClient()
   const consolidateMutation = useMutation({
     mutationFn: servicem8Api.consolidateHoursSync,
-    onSuccess: (r) => toast(`Updated ${r.updated} job(s) with actual labor hours.`),
-    onError: () => toast('Consolidation failed', 'error'),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['schedule-history'] })
+      if (r.failed > 0) {
+        toast(`Updated ${r.updated} job(s). ${r.failed} failed — check SM8 API key permissions.`, 'error')
+      } else if (r.updated === 0) {
+        toast('No completed SM8 jobs found to pull. Jobs must be dispatched and marked Completed in ServiceM8 first.')
+      } else {
+        toast(`Updated ${r.updated} job(s) with actual labor hours.`)
+      }
+    },
+    onError: (e: any) => toast(e?.response?.data?.detail ?? 'Consolidation failed — check the SM8 API key.', 'error'),
   })
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5 space-y-3">

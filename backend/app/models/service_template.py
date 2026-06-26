@@ -17,6 +17,7 @@ class ServiceTemplate(Base):
     parsed_document_text: Mapped[str] = mapped_column(Text, nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(500))
     interval_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    default_estimated_labor_hours: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     historical_average_labor_hours: Mapped[float] = mapped_column(Numeric(5, 2), default=0.00)
     job_description: Mapped[str | None] = mapped_column(Text)
     work_completed: Mapped[str | None] = mapped_column(Text)

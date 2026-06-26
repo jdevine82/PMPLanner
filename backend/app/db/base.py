@@ -16,5 +16,6 @@ from app.models import (  # noqa: E402, F401
     maintenance_schedule,
     service_template,
     site,
+    site_location,
     user,
 )
