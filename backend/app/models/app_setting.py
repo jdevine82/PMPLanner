@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -19,3 +19,9 @@ class AppSetting(Base):
     last_successful_sync_timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    assettracker_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    assettracker_base_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    assettracker_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    assettracker_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    assettracker_default_asset_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -40,6 +40,7 @@ class JobInstance(Base):
     sync_status: Mapped[str] = mapped_column(String(20), default="Unsynced")
     servicem8_job_uuid: Mapped[str | None] = mapped_column(String(255), index=True)
     servicem8_job_number: Mapped[int | None] = mapped_column(Integer)
+    assettracker_wo_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     customer_po_link: Mapped[str | None] = mapped_column(String(500))
     actual_labor_hours: Mapped[float | None] = mapped_column(Numeric(5, 2))
     approved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))

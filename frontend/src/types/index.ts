@@ -108,6 +108,7 @@ export interface JobInstance {
   sync_status: SyncStatus
   servicem8_job_uuid: string | null
   servicem8_job_number: number | null
+  assettracker_wo_id: number | null
   customer_po_link: string | null
   actual_labor_hours: number | null
   approved_by_user_id: number | null
@@ -139,6 +140,10 @@ export interface AppSetting {
   business_name: string | null
   logo_filename: string | null
   last_successful_sync_timestamp: string
+  assettracker_enabled: boolean
+  assettracker_base_url: string | null
+  assettracker_email: string | null
+  assettracker_default_asset_id: number | null
 }
 
 export interface Project {

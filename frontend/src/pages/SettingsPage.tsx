@@ -1,8 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import { Download, HardDrive, RefreshCw, Upload, X } from 'lucide-react'
+import { CheckCircle, Download, HardDrive, RefreshCw, Send, Upload, X } from 'lucide-react'
 import { apiClient } from '@/api/client'
 import { servicem8Api } from '@/api/servicem8'
+import { assettrackerApi } from '@/api/assettracker'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
@@ -139,6 +140,180 @@ function ConsolidateSection() {
         <RefreshCw className={`h-3.5 w-3.5 ${consolidateMutation.isPending ? 'animate-spin' : ''}`} />
         {consolidateMutation.isPending ? 'Running…' : 'Run Consolidation Now'}
       </Button>
+    </section>
+  )
+}
+
+function AssetTrackerSection({ settings }: { settings: AppSetting | undefined }) {
+  const { toast } = useToast()
+  const qc = useQueryClient()
+
+  const [form, setForm] = useState({
+    assettracker_enabled: settings?.assettracker_enabled ?? false,
+    assettracker_base_url: settings?.assettracker_base_url ?? '',
+    assettracker_email: settings?.assettracker_email ?? '',
+    assettracker_password: '',
+    assettracker_default_asset_id: settings?.assettracker_default_asset_id?.toString() ?? '',
+  })
+  const set = (k: string, v: string | boolean) => setForm((p) => ({ ...p, [k]: v }))
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload: Record<string, unknown> = {
+        assettracker_enabled: form.assettracker_enabled,
+        assettracker_base_url: form.assettracker_base_url || null,
+        assettracker_email: form.assettracker_email || null,
+        assettracker_default_asset_id: form.assettracker_default_asset_id
+          ? parseInt(form.assettracker_default_asset_id)
+          : null,
+      }
+      if (form.assettracker_password) {
+        payload.assettracker_password = form.assettracker_password
+      }
+      return (await apiClient.patch('/settings', payload)).data
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['app-settings'] }); toast('AssetTracker settings saved') },
+    onError: () => toast('Failed to save AssetTracker settings', 'error'),
+  })
+
+  const testMutation = useMutation({
+    mutationFn: assettrackerApi.testConnection,
+    onSuccess: (r) => toast(`Connected as ${(r.user as any)?.full_name ?? (r.user as any)?.email ?? 'unknown'}`),
+    onError: (e: any) => toast(e?.response?.data?.detail ?? 'Connection test failed', 'error'),
+  })
+
+  const dispatchMutation = useMutation({
+    mutationFn: assettrackerApi.dispatchSync,
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['jobs'] })
+      if (r.message) {
+        toast(r.message)
+      } else if (r.failed > 0) {
+        toast(`Dispatched ${r.dispatched} job(s). ${r.failed} failed — check AssetTracker settings.`, 'error')
+      } else if (r.dispatched === 0) {
+        toast('No approved jobs to dispatch. Jobs must be Approved and Unsynced first.')
+      } else {
+        toast(`Dispatched ${r.dispatched} job(s) to AssetTracker.`)
+      }
+    },
+    onError: (e: any) => toast(e?.response?.data?.detail ?? 'Dispatch failed', 'error'),
+  })
+
+  const pullMutation = useMutation({
+    mutationFn: assettrackerApi.pullCompletedSync,
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ['jobs'] })
+      if (r.message) {
+        toast(r.message)
+      } else if (r.updated === 0) {
+        toast('No completed AssetTracker work orders found to pull.')
+      } else {
+        toast(`Updated ${r.updated} job(s) from AssetTracker.`)
+      }
+    },
+    onError: (e: any) => toast(e?.response?.data?.detail ?? 'Pull failed', 'error'),
+  })
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-5 space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-gray-800">AssetTracker Integration</h2>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            checked={form.assettracker_enabled}
+            onChange={(e) => set('assettracker_enabled', e.target.checked)}
+          />
+          <span className="text-sm text-gray-600">Enabled</span>
+        </label>
+      </div>
+
+      <div className="space-y-1">
+        <Label>AssetTracker URL</Label>
+        <Input
+          placeholder="http://10.0.30.29:8001"
+          value={form.assettracker_base_url}
+          onChange={(e) => set('assettracker_base_url', e.target.value)}
+        />
+        <p className="text-xs text-gray-400">Base URL of the AssetTracker API (no trailing slash)</p>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Service Account Email</Label>
+        <Input
+          type="email"
+          placeholder="admin@b2bassets.com"
+          value={form.assettracker_email}
+          onChange={(e) => set('assettracker_email', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label>Service Account Password</Label>
+        <Input
+          type="password"
+          placeholder={settings?.assettracker_email ? '••••••••' : 'Enter password'}
+          value={form.assettracker_password}
+          onChange={(e) => set('assettracker_password', e.target.value)}
+        />
+        <p className="text-xs text-gray-400">Leave blank to keep existing password</p>
+      </div>
+
+      <div className="space-y-1">
+        <Label>Default Asset ID</Label>
+        <Input
+          type="number"
+          min={1}
+          placeholder="e.g. 42"
+          value={form.assettracker_default_asset_id}
+          onChange={(e) => set('assettracker_default_asset_id', e.target.value)}
+          className="w-32"
+        />
+        <p className="text-xs text-gray-400">The AssetTracker asset ID to link work orders to (use a catch-all PM asset)</p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} variant="outline">
+          {saveMutation.isPending ? 'Saving…' : 'Save Settings'}
+        </Button>
+        <Button
+          onClick={() => testMutation.mutate()}
+          disabled={testMutation.isPending || !settings?.assettracker_base_url}
+          variant="outline"
+        >
+          <CheckCircle className="h-3.5 w-3.5" />
+          {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+        </Button>
+      </div>
+
+      {settings?.assettracker_enabled && (
+        <div className="border-t border-gray-100 pt-4 space-y-3">
+          <p className="text-xs font-medium text-gray-600">Actions</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => dispatchMutation.mutate()}
+              disabled={dispatchMutation.isPending}
+              variant="outline"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {dispatchMutation.isPending ? 'Dispatching…' : 'Dispatch Approved Jobs'}
+            </Button>
+            <Button
+              onClick={() => pullMutation.mutate()}
+              disabled={pullMutation.isPending}
+              variant="outline"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${pullMutation.isPending ? 'animate-spin' : ''}`} />
+              {pullMutation.isPending ? 'Pulling…' : 'Pull Completed Work Orders'}
+            </Button>
+          </div>
+          <p className="text-xs text-gray-400">
+            Dispatch sends Approved+Unsynced jobs to AssetTracker as work orders.
+            Pull updates PMPlanner when those work orders are marked completed.
+          </p>
+        </div>
+      )}
     </section>
   )
 }
@@ -306,6 +481,8 @@ export default function SettingsPage() {
           <BackupSection />
 
           <ConsolidateSection />
+
+          <AssetTrackerSection settings={settings} />
 
         </div>
       </div>

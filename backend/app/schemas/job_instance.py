@@ -33,6 +33,7 @@ class JobInstanceOut(BaseModel):
     sync_status: str
     servicem8_job_uuid: str | None
     servicem8_job_number: int | None
+    assettracker_wo_id: int | None
     customer_po_link: str | None
     actual_labor_hours: float | None
     approved_by_user_id: int | None

@@ -10,6 +10,11 @@ class AppSettingCreate(BaseModel):
     monthly_capacity_hours: int = 0
     business_name: str | None = None
     logo_filename: str | None = None
+    assettracker_enabled: bool = False
+    assettracker_base_url: str | None = None
+    assettracker_email: str | None = None
+    assettracker_password: str | None = None
+    assettracker_default_asset_id: int | None = None
 
 
 class AppSettingUpdate(BaseModel):
@@ -19,6 +24,11 @@ class AppSettingUpdate(BaseModel):
     monthly_capacity_hours: int | None = None
     business_name: str | None = None
     logo_filename: str | None = None
+    assettracker_enabled: bool | None = None
+    assettracker_base_url: str | None = None
+    assettracker_email: str | None = None
+    assettracker_password: str | None = None
+    assettracker_default_asset_id: int | None = None
 
 
 class AppSettingOut(BaseModel):
@@ -32,3 +42,7 @@ class AppSettingOut(BaseModel):
     business_name: str | None
     logo_filename: str | None
     last_successful_sync_timestamp: datetime
+    assettracker_enabled: bool
+    assettracker_base_url: str | None
+    assettracker_email: str | None
+    assettracker_default_asset_id: int | None
