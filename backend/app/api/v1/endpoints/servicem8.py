@@ -1,10 +1,15 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, get_db, require_staff
 from app.models.customer import Customer
 from app.servicem8 import client as sm8
 from app.servicem8.sync import dispatch_approved_jobs, consolidate_labor_hours
+
+
+class DispatchSyncRequest(BaseModel):
+    job_ids: list[int] | None = None
 
 router = APIRouter()
 
@@ -121,10 +126,14 @@ async def dispatch_jobs(background_tasks: BackgroundTasks, db: Session = Depends
 
 
 @router.post("/dispatch/sync")
-async def dispatch_jobs_sync(db: Session = Depends(get_db), _=Depends(require_staff)):
+async def dispatch_jobs_sync(
+    body: DispatchSyncRequest = Body(default_factory=DispatchSyncRequest),
+    db: Session = Depends(get_db),
+    _=Depends(require_staff),
+):
     """Synchronous dispatch — waits for completion and returns a summary."""
     try:
-        result = await dispatch_approved_jobs(db)
+        result = await dispatch_approved_jobs(db, job_ids=body.job_ids)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return result

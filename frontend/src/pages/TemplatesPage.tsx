@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
-import { Plus, Upload, Trash2, FileText, Pencil, Link, Tag, RefreshCw, X } from 'lucide-react'
+import { Plus, Trash2, FileText, Pencil, Link, Tag, RefreshCw, X } from 'lucide-react'
 import { templatesApi } from '@/api/templates'
 import { servicem8Api } from '@/api/servicem8'
 import { Button } from '@/components/ui/Button'
@@ -10,8 +10,6 @@ import { Label } from '@/components/ui/Label'
 import { Dialog } from '@/components/ui/Dialog'
 import { useToast } from '@/components/ui/Toast'
 import type { ServiceTemplate, TemplateAttachment, SM8Badge } from '@/types'
-
-type Mode = 'manual' | 'upload'
 
 // ── Attachments editor ────────────────────────────────────────────────────────
 
@@ -160,66 +158,41 @@ function BadgesSelector({
 
 const INTERVAL_OPTIONS = [1, 3, 6, 12, 24]
 
-function CreateDialog({ onClose, loading, onManual, onUpload }: {
+function CreateDialog({ onClose, loading, onManual }: {
   onClose: () => void
   loading: boolean
   onManual: (title: string, content: string, extras: {
     interval_months: number | null
     default_estimated_labor_hours: number | null
-    job_description: string
     work_completed: string
     attachments: TemplateAttachment[]
     job_badges: SM8Badge[]
   }) => void
-  onUpload: (title: string, file: File) => void
 }) {
-  const [mode, setMode] = useState<Mode>('manual')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [intervalMonths, setIntervalMonths] = useState<string>('')
   const [defaultHours, setDefaultHours] = useState<string>('')
-  const [jobDescription, setJobDescription] = useState('')
   const [workCompleted, setWorkCompleted] = useState('')
   const [attachments, setAttachments] = useState<TemplateAttachment[]>([])
   const [badges, setBadges] = useState<SM8Badge[]>([])
-  const [file, setFile] = useState<File | null>(null)
 
   function submit() {
     const interval = intervalMonths ? parseInt(intervalMonths) : null
     const estHours = defaultHours ? parseFloat(defaultHours) : null
-    if (mode === 'manual') {
-      onManual(title, content, {
-        interval_months: interval,
-        default_estimated_labor_hours: estHours,
-        job_description: jobDescription,
-        work_completed: workCompleted,
-        attachments,
-        job_badges: badges,
-      })
-    } else if (file) {
-      onUpload(title, file)
-    }
+    onManual(title, content, {
+      interval_months: interval,
+      default_estimated_labor_hours: estHours,
+      work_completed: workCompleted,
+      attachments,
+      job_badges: badges,
+    })
   }
 
-  const canSubmit = title.trim() && (mode === 'manual' ? content.trim() : !!file)
+  const canSubmit = title.trim() && content.trim()
 
   return (
     <div className="space-y-4">
-      <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
-        <button
-          className={`flex-1 py-2 transition-colors ${mode === 'manual' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-          onClick={() => setMode('manual')}
-        >
-          Enter Manually
-        </button>
-        <button
-          className={`flex-1 py-2 transition-colors ${mode === 'upload' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-          onClick={() => setMode('upload')}
-        >
-          Import Word Document
-        </button>
-      </div>
-
       <div className="space-y-1">
         <Label htmlFor="title">Service Name *</Label>
         <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. HVAC Quarterly Service" />
@@ -254,61 +227,36 @@ function CreateDialog({ onClose, loading, onManual, onUpload }: {
         </div>
       </div>
 
-      {mode === 'manual' ? (
-        <>
-          <div className="space-y-1">
-            <Label htmlFor="content">Service Checklist / Instructions *</Label>
-            <textarea
-              id="content"
-              rows={6}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Enter the service checklist, steps, or instructions…"
-              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="job_desc">Job Description</Label>
-            <textarea
-              id="job_desc"
-              rows={3}
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              placeholder="Describe the job scope…"
-              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="work_completed">Work Completed</Label>
-            <textarea
-              id="work_completed"
-              rows={3}
-              value={workCompleted}
-              onChange={(e) => setWorkCompleted(e.target.value)}
-              placeholder="Describe what work is to be completed…"
-              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>Attachments / Map Links</Label>
-            <AttachmentsEditor value={attachments} onChange={setAttachments} />
-          </div>
-          <div className="space-y-1">
-            <Label>Job Badges <span className="text-gray-400 font-normal">(SM8)</span></Label>
-            <BadgesSelector selected={badges} onChange={setBadges} />
-          </div>
-        </>
-      ) : (
-        <div className="space-y-1">
-          <Label>Word Document (.docx) *</Label>
-          <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-4 py-8 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors">
-            <Upload className="h-6 w-6" />
-            <span>{file ? file.name : 'Click to select .docx file'}</span>
-            <span className="text-xs text-gray-400">Text will be extracted automatically</span>
-            <input type="file" accept=".docx" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-          </label>
-        </div>
-      )}
+      <div className="space-y-1">
+        <Label htmlFor="content">Service Checklist / Instructions *</Label>
+        <textarea
+          id="content"
+          rows={6}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Enter the service checklist, steps, or instructions…"
+          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="work_completed">Work Completed</Label>
+        <textarea
+          id="work_completed"
+          rows={3}
+          value={workCompleted}
+          onChange={(e) => setWorkCompleted(e.target.value)}
+          placeholder="Describe what work is to be completed…"
+          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label>Attachments / Map Links</Label>
+        <AttachmentsEditor value={attachments} onChange={setAttachments} />
+      </div>
+      <div className="space-y-1">
+        <Label>Job Badges <span className="text-gray-400 font-normal">(SM8)</span></Label>
+        <BadgesSelector selected={badges} onChange={setBadges} />
+      </div>
 
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
@@ -331,7 +279,6 @@ function EditDialog({ template, onClose, loading, onSave }: {
     content: string
     interval_months: number | null
     default_estimated_labor_hours: number | null
-    job_description: string
     work_completed: string
     attachments: TemplateAttachment[]
     job_badges: SM8Badge[]
@@ -341,7 +288,6 @@ function EditDialog({ template, onClose, loading, onSave }: {
   const [content, setContent] = useState(template.parsed_document_text)
   const [intervalMonths, setIntervalMonths] = useState<string>(template.interval_months?.toString() ?? '')
   const [defaultHours, setDefaultHours] = useState<string>(template.default_estimated_labor_hours?.toString() ?? '')
-  const [jobDescription, setJobDescription] = useState(template.job_description ?? '')
   const [workCompleted, setWorkCompleted] = useState(template.work_completed ?? '')
   const [attachments, setAttachments] = useState<TemplateAttachment[]>(template.attachments ?? [])
   const [badges, setBadges] = useState<SM8Badge[]>(template.job_badges ?? [])
@@ -389,17 +335,6 @@ function EditDialog({ template, onClose, loading, onSave }: {
       </div>
 
       <div className="space-y-1">
-        <Label>Job Description</Label>
-        <textarea
-          rows={3}
-          value={jobDescription}
-          onChange={(e) => setJobDescription(e.target.value)}
-          placeholder="Describe the job scope…"
-          className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
-        />
-      </div>
-
-      <div className="space-y-1">
         <Label>Work Completed</Label>
         <textarea
           rows={3}
@@ -423,7 +358,7 @@ function EditDialog({ template, onClose, loading, onSave }: {
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button
-          onClick={() => onSave({ title, content, interval_months: intervalMonths ? parseInt(intervalMonths) : null, default_estimated_labor_hours: defaultHours ? parseFloat(defaultHours) : null, job_description: jobDescription, work_completed: workCompleted, attachments, job_badges: badges })}
+          onClick={() => onSave({ title, content, interval_months: intervalMonths ? parseInt(intervalMonths) : null, default_estimated_labor_hours: defaultHours ? parseFloat(defaultHours) : null, work_completed: workCompleted, attachments, job_badges: badges })}
           disabled={!title.trim() || loading}
         >
           {loading ? 'Saving…' : 'Save Changes'}
@@ -438,12 +373,6 @@ function EditDialog({ template, onClose, loading, onSave }: {
 function TemplatePreview({ template }: { template: ServiceTemplate }) {
   return (
     <div className="space-y-4">
-      {template.job_description && (
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Description</p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{template.job_description}</p>
-        </div>
-      )}
       {template.work_completed && (
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Work Completed</p>
@@ -507,8 +436,6 @@ export default function TemplatesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editTemplate, setEditTemplate] = useState<ServiceTemplate | null>(null)
   const [previewTemplate, setPreviewTemplate] = useState<ServiceTemplate | null>(null)
-  const replaceInputRef = useRef<HTMLInputElement>(null)
-  const [replaceId, setReplaceId] = useState<number | null>(null)
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ['templates'],
@@ -519,24 +446,17 @@ export default function TemplatesPage() {
     mutationFn: ({ title, content, extras }: {
       title: string
       content: string
-      extras: { interval_months: number | null; default_estimated_labor_hours: number | null; job_description: string; work_completed: string; attachments: TemplateAttachment[]; job_badges: SM8Badge[] }
+      extras: { interval_months: number | null; default_estimated_labor_hours: number | null; work_completed: string; attachments: TemplateAttachment[]; job_badges: SM8Badge[] }
     }) =>
       templatesApi.createManual(title, content, {
         interval_months: extras.interval_months,
         default_estimated_labor_hours: extras.default_estimated_labor_hours,
-        job_description: extras.job_description || null,
         work_completed: extras.work_completed || null,
         attachments: extras.attachments.length ? extras.attachments : null,
         job_badges: extras.job_badges.length ? extras.job_badges : null,
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); setCreateOpen(false); toast('Service created') },
     onError: () => toast('Failed to create service', 'error'),
-  })
-
-  const createUploadMutation = useMutation({
-    mutationFn: ({ title, file }: { title: string; file: File }) => templatesApi.create(title, file),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); setCreateOpen(false); toast('Service created') },
-    onError: () => toast('Upload failed — ensure the file is a valid .docx', 'error'),
   })
 
   const updateMutation = useMutation({
@@ -547,7 +467,6 @@ export default function TemplatesPage() {
         content: string
         interval_months: number | null
         default_estimated_labor_hours: number | null
-        job_description: string
         work_completed: string
         attachments: TemplateAttachment[]
         job_badges: SM8Badge[]
@@ -558,7 +477,6 @@ export default function TemplatesPage() {
         parsed_document_text: data.content,
         interval_months: data.interval_months,
         default_estimated_labor_hours: data.default_estimated_labor_hours,
-        job_description: data.job_description || null,
         work_completed: data.work_completed || null,
         attachments: data.attachments.length ? data.attachments : null,
         job_badges: data.job_badges.length ? data.job_badges : null,
@@ -567,28 +485,13 @@ export default function TemplatesPage() {
     onError: () => toast('Failed to save service', 'error'),
   })
 
-  const replaceMutation = useMutation({
-    mutationFn: ({ id, file }: { id: number; file: File }) => templatesApi.replaceDocument(id, file),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); toast('Document replaced') },
-    onError: () => toast('Replace failed', 'error'),
-  })
-
   const deleteMutation = useMutation({
     mutationFn: templatesApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['templates'] }); toast('Service deleted') },
     onError: () => toast('Cannot delete — service may be in use by schedules', 'error'),
   })
 
-  function handleReplaceFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file && replaceId != null) {
-      replaceMutation.mutate({ id: replaceId, file })
-      setReplaceId(null)
-    }
-    e.target.value = ''
-  }
-
-  const isCreating = createManualMutation.isPending || createUploadMutation.isPending
+  const isCreating = createManualMutation.isPending
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -621,8 +524,7 @@ export default function TemplatesPage() {
                     <p className="text-xs text-gray-400">
                       {t.interval_months ? `Every ${t.interval_months}mo · ` : ''}
                       {t.default_estimated_labor_hours != null ? `Est. ${t.default_estimated_labor_hours}h · ` : ''}
-                      {t.historical_average_labor_hours > 0 ? `Avg ${t.historical_average_labor_hours}h · ` : ''}
-                      {t.original_filename ? t.original_filename : t.parsed_document_text ? 'manual entry' : 'no content yet'}
+                      {t.historical_average_labor_hours > 0 ? `Avg ${t.historical_average_labor_hours}h` : ''}
                     </p>
                     {t.attachments && t.attachments.length > 0 && (
                       <span className="inline-flex items-center gap-1 text-xs text-blue-500">
@@ -653,12 +555,6 @@ export default function TemplatesPage() {
                     </Button>
                     <Button
                       variant="ghost" size="sm"
-                      onClick={() => { setReplaceId(t.id); replaceInputRef.current?.click() }}
-                    >
-                      <Upload className="h-3.5 w-3.5" />Replace .docx
-                    </Button>
-                    <Button
-                      variant="ghost" size="sm"
                       onClick={() => deleteMutation.mutate(t.id)}
                       className="text-red-500 hover:text-red-700"
                     >
@@ -672,18 +568,15 @@ export default function TemplatesPage() {
         </div>
       </div>
 
-      <input ref={replaceInputRef} type="file" accept=".docx" className="hidden" onChange={handleReplaceFile} />
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen} title="New Service">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen} title="New Service" className="max-w-4xl">
         <CreateDialog
           onClose={() => setCreateOpen(false)}
           loading={isCreating}
           onManual={(title, content, extras) => createManualMutation.mutate({ title, content, extras })}
-          onUpload={(title, file) => createUploadMutation.mutate({ title, file })}
         />
       </Dialog>
 
-      <Dialog open={!!editTemplate} onOpenChange={(o) => !o && setEditTemplate(null)} title="Edit Service">
+      <Dialog open={!!editTemplate} onOpenChange={(o) => !o && setEditTemplate(null)} title="Edit Service" className="max-w-4xl">
         {editTemplate && (
           <EditDialog
             template={editTemplate}

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useWorkloadForecast } from '@/hooks/useWorkloadForecast'
 
 function barColor(hours: number, capacity: number): string {
@@ -9,7 +10,7 @@ function barColor(hours: number, capacity: number): string {
   return 'bg-green-400'
 }
 
-export function WorkloadForecastFooter() {
+export const WorkloadForecastFooter = memo(function WorkloadForecastFooter() {
   const { months, capacityHours } = useWorkloadForecast()
   const maxHours = Math.max(...months.map((m) => m.hours), 1)
 
@@ -68,4 +69,4 @@ export function WorkloadForecastFooter() {
       </div>
     </footer>
   )
-}
+})

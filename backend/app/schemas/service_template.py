@@ -13,7 +13,6 @@ class ServiceTemplateOut(BaseModel):
     interval_months: int | None
     default_estimated_labor_hours: float | None
     historical_average_labor_hours: float
-    job_description: str | None
     work_completed: str | None
     attachments: list[Any] | None
     job_badges: list[Any] | None
@@ -24,7 +23,6 @@ class ServiceTemplateUpdate(BaseModel):
     parsed_document_text: str | None = None
     interval_months: int | None = None
     default_estimated_labor_hours: float | None = None
-    job_description: str | None = None
     work_completed: str | None = None
     attachments: list[Any] | None = None
     job_badges: list[Any] | None = None
@@ -35,7 +33,6 @@ class ServiceTemplateManualCreate(BaseModel):
     content: str
     interval_months: int | None = None
     default_estimated_labor_hours: float | None = None
-    job_description: str | None = None
     work_completed: str | None = None
     attachments: list[Any] | None = None
     job_badges: list[Any] | None = None

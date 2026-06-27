@@ -76,21 +76,21 @@ function CustomerForm({ initial, onSubmit, onCancel, loading }: {
 
 // ─── Site form ────────────────────────────────────────────────────────────────
 
-type SiteFormValues = { site_name: string; site_address: string; servicem8_client_uuid: string | null }
+type SiteFormValues = { site_name: string; site_address: string | null; servicem8_client_uuid: string | null }
 
 function SiteForm({ initial, onSubmit, onCancel, loading }: {
   initial?: Partial<Site>; onSubmit: (v: SiteFormValues) => void; onCancel: () => void; loading: boolean
 }) {
-  const [form, setForm] = useState<SiteFormValues>({ site_name: initial?.site_name ?? '', site_address: initial?.site_address ?? '', servicem8_client_uuid: initial?.servicem8_client_uuid ?? null })
+  const [form, setForm] = useState<SiteFormValues>({ site_name: initial?.site_name ?? '', site_address: initial?.site_address ?? null, servicem8_client_uuid: initial?.servicem8_client_uuid ?? null })
   const set = (k: keyof SiteFormValues, v: string | null) => setForm((p) => ({ ...p, [k]: v }))
 
   return (
     <div className="space-y-4">
       <div className="space-y-1"><Label>Site Name *</Label><Input value={form.site_name} onChange={(e) => set('site_name', e.target.value)} required /></div>
-      <div className="space-y-1"><Label>Site Address *</Label><Input value={form.site_address} onChange={(e) => set('site_address', e.target.value)} required /></div>
+      <div className="space-y-1"><Label>Site Address</Label><Input value={form.site_address ?? ''} onChange={(e) => set('site_address', e.target.value || null)} /></div>
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={() => onSubmit(form)} disabled={!form.site_name || !form.site_address || loading}>{loading ? 'Saving…' : 'Save'}</Button>
+        <Button onClick={() => onSubmit(form)} disabled={!form.site_name || loading}>{loading ? 'Saving…' : 'Save'}</Button>
       </div>
     </div>
   )
@@ -211,7 +211,7 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
         <Label>Service *</Label>
         <select className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           value={form.service_id} onChange={(e) => handleServiceChange(Number(e.target.value))}>
-          {templates.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+          {templates.map((t) => <option key={t.id} value={t.id}>{t.title}{t.interval_months ? ` — ${t.interval_months}mo` : ''}</option>)}
         </select>
       </div>
       <div className="grid grid-cols-2 gap-4">
@@ -540,7 +540,7 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
         <div className="space-y-1">
           <Label>Service *</Label>
           <select className={SELECT_CLASS} value={form.service_id} onChange={(e) => set('service_id', Number(e.target.value))}>
-            {templates.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+            {templates.map((t) => <option key={t.id} value={t.id}>{t.title}{t.interval_months ? ` — ${t.interval_months}mo` : ''}</option>)}
           </select>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -1105,7 +1105,7 @@ export default function CustomersPage() {
                           {expandedSites.has(s.id) ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
                           <div>
                             <p className="font-medium text-gray-700">{s.site_name}</p>
-                            <p className="text-xs text-gray-400">{s.site_address}</p>
+                            {s.site_address && <p className="text-xs text-gray-400">{s.site_address}</p>}
                             {s.servicem8_client_uuid && <p className="text-xs text-blue-400 flex items-center gap-1"><Link2 className="h-3 w-3" />SM8 linked</p>}
                           </div>
                         </div>

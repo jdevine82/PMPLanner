@@ -45,8 +45,8 @@ export const servicem8Api = {
     return data
   },
 
-  dispatchSync: async (): Promise<DispatchResult> => {
-    const { data } = await apiClient.post<DispatchResult>('/servicem8/dispatch/sync')
+  dispatchSync: async (jobIds?: number[]): Promise<DispatchResult> => {
+    const { data } = await apiClient.post<DispatchResult>('/servicem8/dispatch/sync', jobIds ? { job_ids: jobIds } : {})
     return data
   },
 

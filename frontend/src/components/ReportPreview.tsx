@@ -123,6 +123,29 @@ export function ReportPreview({ data }: Props) {
         </table>
       </div>
 
+      {/* Section E — Prior Incomplete Jobs */}
+      <div className="mb-8">
+        <SectionTitle label="E — Prior Months — Incomplete Jobs" />
+        <table className="w-full text-xs border-collapse">
+          <thead><tr className="bg-blue-50 text-blue-900">
+            {['Month', 'Asset', 'Service', 'Status', 'Est. Hours'].map((h) => (
+              <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
+            ))}
+          </tr></thead>
+          <tbody>
+            {data.prior_incomplete.length === 0 ? <EmptyRow cols={5} /> : data.prior_incomplete.map((r, i) => (
+              <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <td className="border border-gray-200 px-3 py-2 font-medium">{r.month}</td>
+                <td className="border border-gray-200 px-3 py-2">{r.asset_name}</td>
+                <td className="border border-gray-200 px-3 py-2">{r.service_title}</td>
+                <td className="border border-gray-200 px-3 py-2 text-amber-700 font-semibold">{r.status}</td>
+                <td className="border border-gray-200 px-3 py-2">{r.estimated_hours != null ? `${r.estimated_hours.toFixed(2)}h` : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {/* Section D */}
       <div className="mb-4">
         <SectionTitle label={`D — Upcoming Forecast (Next ${data.forecast_months} Months)`} />

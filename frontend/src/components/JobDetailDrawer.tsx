@@ -38,7 +38,7 @@ export function JobDetailDrawer({ row, onClose }: Props) {
     mutationFn: (comment_text: string) => jobsApi.addComment(leadRow!.job.id, comment_text),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['comments-detail', allJobIds] })
-      queryClient.invalidateQueries({ queryKey: ['comment-counts'] })
+      queryClient.invalidateQueries({ queryKey: ['comment-counts', leadRow?.job.target_month_year] })
       setText('')
     },
   })
@@ -99,14 +99,6 @@ export function JobDetailDrawer({ row, onClose }: Props) {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-
-        {/* Job description */}
-        {template?.job_description && (
-          <div className="border-b border-gray-100 px-4 py-3">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Job Description</p>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{template.job_description}</p>
           </div>
         )}
 

@@ -10,6 +10,7 @@ import { JobGrid, type ProjectRow } from '@/components/JobGrid'
 import { MissingMonthBanner } from '@/components/MissingMonthBanner'
 import { MonthPicker } from '@/components/MonthPicker'
 import { JobDetailDrawer } from '@/components/JobDetailDrawer'
+import { SM8SyncPreviewModal } from '@/components/SM8SyncPreviewModal'
 import { WorkloadForecastFooter } from '@/components/WorkloadForecastFooter'
 import { Button } from '@/components/ui/Button'
 import { useToast } from '@/components/ui/Toast'
@@ -21,6 +22,7 @@ import type { AppSetting, DashboardRow } from '@/types'
 export default function DashboardPage() {
   const [month, setMonth] = useState(nextMonthYear)
   const [activeDetailRow, setActiveDetailRow] = useState<DashboardRow | null>(null)
+  const [syncPreviewOpen, setSyncPreviewOpen] = useState(false)
   const qc = useQueryClient()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -57,7 +59,7 @@ export default function DashboardPage() {
   })
 
   const syncMutation = useMutation({
-    mutationFn: servicem8Api.dispatchSync,
+    mutationFn: (jobIds: number[]) => servicem8Api.dispatchSync(jobIds),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['jobs', month] })
       toast(`Dispatched ${result.dispatched} job(s) to ServiceM8.${result.failed > 0 ? ` ${result.failed} failed.` : ''}`)
@@ -109,6 +111,11 @@ export default function DashboardPage() {
     refused:  rows.filter((r) => r.job.approval_status === 'Refused by Customer').length,
     unsynced: rows.filter((r) => r.job.sync_status === 'Unsynced').length,
   }), [rows])
+
+  const syncableRows = useMemo(
+    () => rows.filter((r) => r.job.approval_status === 'Approved' && r.job.sync_status === 'Unsynced'),
+    [rows],
+  )
 
   const capacityHours = settings?.monthly_capacity_hours ?? 0
 
@@ -179,7 +186,7 @@ export default function DashboardPage() {
                 <DownloadCloud className="h-3.5 w-3.5" />
                 {consolidateMutation.isPending ? 'Pulling…' : 'Pull SM8 Updates'}
               </Button>
-              <Button size="sm" disabled={stats.approved === 0 || syncMutation.isPending} onClick={() => syncMutation.mutate()}>
+              <Button size="sm" disabled={stats.approved === 0 || syncMutation.isPending} onClick={() => setSyncPreviewOpen(true)}>
                 <CheckSquare className="h-3.5 w-3.5" />
                 {syncMutation.isPending ? 'Syncing…' : `Sync ${stats.approved} Approved to ServiceM8`}
               </Button>
@@ -211,6 +218,14 @@ export default function DashboardPage() {
       <JobDetailDrawer
         row={activeDetailRow}
         onClose={() => setActiveDetailRow(null)}
+      />
+
+      <SM8SyncPreviewModal
+        open={syncPreviewOpen}
+        onOpenChange={setSyncPreviewOpen}
+        rows={syncableRows}
+        onConfirm={(ids) => { syncMutation.mutate(ids); setSyncPreviewOpen(false) }}
+        isPending={syncMutation.isPending}
       />
 
       <WorkloadForecastFooter />

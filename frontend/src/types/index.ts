@@ -18,7 +18,7 @@ export interface Site {
   id: number
   customer_id: number
   site_name: string
-  site_address: string
+  site_address: string | null
   servicem8_client_uuid: string | null
   created_at: string
 }
@@ -61,7 +61,6 @@ export interface ServiceTemplate {
   interval_months: number | null
   default_estimated_labor_hours: number | null
   historical_average_labor_hours: number
-  job_description: string | null
   work_completed: string | null
   attachments: TemplateAttachment[] | null
   job_badges: SM8Badge[] | null

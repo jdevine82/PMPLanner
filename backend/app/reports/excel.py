@@ -81,6 +81,17 @@ def generate_excel(report_data: dict[str, Any]) -> bytes:
         ws_d.cell(i, 4, row["estimated_hours"])
     _auto_width(ws_d)
 
+    # ── Sheet E: Prior Incomplete Jobs ───────────────────────────────────────
+    ws_e = wb.create_sheet("Prior Incomplete Jobs")
+    _header_row(ws_e, ["Month", "Asset", "Service", "Status", "Est. Hours"], 1)
+    for i, row in enumerate(report_data["prior_incomplete"], 2):
+        ws_e.cell(i, 1, row["month"])
+        ws_e.cell(i, 2, row["asset_name"])
+        ws_e.cell(i, 3, row["service_title"])
+        ws_e.cell(i, 4, row["status"])
+        ws_e.cell(i, 5, row["estimated_hours"])
+    _auto_width(ws_e)
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

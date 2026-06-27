@@ -16,6 +16,7 @@ from app.models.job_instance import JobInstance
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.service_template import ServiceTemplate
 from app.models.site import Site
+from app.models.site_location import SiteLocation
 from app.servicem8 import client as sm8
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,70 @@ def _resolve_sm8_uuid(db: Session, site: Site) -> str | None:
     return customer.servicem8_uuid if customer else None
 
 
+def _fmt_month_year(month_year: str) -> str:
+    """Convert 'YYYY-MM' to 'Month YYYY', e.g. '2026-06' → 'June 2026'."""
+    from datetime import date
+    try:
+        y, m = int(month_year[:4]), int(month_year[5:7])
+        return date(y, m, 1).strftime("%B %Y")
+    except (ValueError, IndexError):
+        return month_year
+
+
+def _build_description(
+    template: "ServiceTemplate | None",
+    site: Site,
+    asset_names: list[str],
+    sublocation_names: list[str],
+    frequency_months: int,
+    total_hours: float,
+    service_month_year: str,
+    custom_instructions: list[str],
+) -> str:
+    """Build the formatted SM8 job description."""
+    lines: list[str] = []
+
+    # Line 1: service month/year
+    lines.append(_fmt_month_year(service_month_year))
+
+    # Line 2: service name + interval
+    service_title = template.title if template else "Service"
+    lines.append(f"{service_title} – {frequency_months} Monthly")
+
+    # Line 3: assets / locations covered
+    lines.append(", ".join(asset_names))
+
+    # Line 4: site location and sublocation
+    if sublocation_names:
+        lines.append(f"{site.site_name} > {', '.join(sublocation_names)}")
+    else:
+        lines.append(site.site_name)
+
+    # Line 5: estimated hours
+    lines.append(f"Estimated hours: {total_hours}")
+
+    # Attachment hyperlinks
+    if template and template.attachments:
+        for att in template.attachments:
+            if not isinstance(att, dict):
+                continue
+            url = att.get("url", "").strip()
+            if not url:
+                continue
+            label = att.get("label", "").strip()
+            lines.append(f"{label}: {url}" if label else url)
+
+    # Custom instructions (per asset or global)
+    for note in custom_instructions:
+        lines.append(note)
+
+    # Service checklist / instructions
+    if template and template.parsed_document_text:
+        lines.append(template.parsed_document_text)
+
+    return "\n".join(lines)
+
+
 async def _dispatch_single(db: Session, job: JobInstance) -> tuple[str, int | None]:
     """Create one SM8 Work Order for a single job instance. Returns (SM8 UUID, job number)."""
     schedule   = db.get(MaintenanceSchedule, job.schedule_id)
@@ -50,19 +115,34 @@ async def _dispatch_single(db: Session, job: JobInstance) -> tuple[str, int | No
     if not sm8_uuid:
         raise ValueError(f"Site {site.id} has no ServiceM8 UUID")
 
-    checklist_lines = [
-        f"Preventative Maintenance: {asset.asset_name}",
-        f"Estimated hours: {schedule.estimated_labor_hours}",
-    ]
+    sublocation_names: list[str] = []
+    if asset.location_id:
+        loc = db.get(SiteLocation, asset.location_id)
+        if loc:
+            sublocation_names = [loc.name]
+
+    custom_instructions: list[str] = []
     if schedule.permanent_custom_instructions:
-        checklist_lines.append(f"\nInstructions: {schedule.permanent_custom_instructions}")
+        custom_instructions = [schedule.permanent_custom_instructions]
+
+    description = _build_description(
+        template=template,
+        site=site,
+        asset_names=[asset.asset_name],
+        sublocation_names=sublocation_names,
+        frequency_months=schedule.frequency_months,
+        total_hours=float(schedule.estimated_labor_hours),
+        service_month_year=job.target_month_year,
+        custom_instructions=custom_instructions,
+    )
+    logger.info("Dispatching job %d — description:\n%s", job.id, description)
 
     payload = {
         "status": "Work Order",
         "company_uuid": sm8_uuid,
         "job_address": site.site_address,
-        "description": "\n".join(checklist_lines),
-        "job_description": (template.job_description or "") if template else "",
+        "description": description,
+        "job_description": description,
         "work_done_description": (template.work_completed or "") if template else "",
         "badges": json.dumps(_badge_uuids(template)),
     }
@@ -81,48 +161,66 @@ async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> tuple[s
     if not sm8_uuid:
         raise ValueError(f"Site {site.id} has no ServiceM8 UUID")
 
-    # Collect all asset names and total estimated hours across the group
-    asset_names = []
+    # Collect all asset names, unique sublocations, total hours, and per-asset instructions
+    asset_names: list[str] = []
+    seen_subloc: set[int] = set()
+    sublocation_names: list[str] = []
     total_hours = 0.0
-    notes: list[str] = []
+    frequency_months = first_schedule.frequency_months
+    custom_instructions: list[str] = []
+
     for job in group_jobs:
-        sched  = db.get(MaintenanceSchedule, job.schedule_id)
-        asset  = db.get(Asset, sched.asset_id)
+        sched = db.get(MaintenanceSchedule, job.schedule_id)
+        asset = db.get(Asset, sched.asset_id)
         asset_names.append(asset.asset_name)
         total_hours += float(sched.estimated_labor_hours)
+        if asset.location_id and asset.location_id not in seen_subloc:
+            loc = db.get(SiteLocation, asset.location_id)
+            if loc:
+                sublocation_names.append(loc.name)
+                seen_subloc.add(asset.location_id)
         if sched.permanent_custom_instructions:
-            notes.append(f"{asset.asset_name}: {sched.permanent_custom_instructions}")
+            custom_instructions.append(f"{asset.asset_name}: {sched.permanent_custom_instructions}")
 
-    checklist_lines = [
-        f"Preventative Maintenance: {', '.join(asset_names)}",
-        f"Estimated hours: {round(total_hours, 2)}",
-    ]
-    if notes:
-        checklist_lines.append("\nInstructions:\n" + "\n".join(notes))
+    description = _build_description(
+        template=template,
+        site=site,
+        asset_names=asset_names,
+        sublocation_names=sublocation_names,
+        frequency_months=frequency_months,
+        total_hours=round(total_hours, 2),
+        service_month_year=first_job.target_month_year,
+        custom_instructions=custom_instructions,
+    )
 
     payload = {
         "status": "Work Order",
         "company_uuid": sm8_uuid,
         "job_address": site.site_address,
-        "description": "\n".join(checklist_lines),
-        "job_description": (template.job_description or "") if template else "",
+        "description": description,
+        "job_description": description,
         "work_done_description": (template.work_completed or "") if template else "",
         "badges": json.dumps(_badge_uuids(template)),
     }
     return await sm8.create_job(db, payload)
 
 
-async def dispatch_approved_jobs(db: Session, notify: Callable[[str], None] | None = None) -> dict:
+async def dispatch_approved_jobs(
+    db: Session,
+    notify: Callable[[str], None] | None = None,
+    job_ids: list[int] | None = None,
+) -> dict:
     """
     For every Approved + Unsynced job, create a Work Order in ServiceM8.
     Jobs sharing an sm8_group_tag at the same site + month are combined into one SM8 job.
     Returns a summary dict with counts.
     """
-    jobs = (
-        db.query(JobInstance)
-        .filter(JobInstance.approval_status == "Approved", JobInstance.sync_status == "Unsynced")
-        .all()
+    q = db.query(JobInstance).filter(
+        JobInstance.approval_status == "Approved", JobInstance.sync_status == "Unsynced"
     )
+    if job_ids is not None:
+        q = q.filter(JobInstance.id.in_(job_ids))
+    jobs = q.all()
 
     synced = 0
     failed = 0

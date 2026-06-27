@@ -40,8 +40,8 @@ def _build_wo_payload(job: JobInstance, db: Session, default_asset_id: int) -> d
     lines = [f"Asset: {asset.asset_name}"]
     if site:
         lines.append(f"Site: {site.site_name}")
-    if template and template.job_description:
-        lines.append(f"\n{template.job_description}")
+    if template and template.parsed_document_text:
+        lines.append(f"\n{template.parsed_document_text}")
     if schedule.permanent_custom_instructions:
         lines.append(f"\nInstructions: {schedule.permanent_custom_instructions}")
     lines.append(f"\nEstimated hours: {schedule.estimated_labor_hours}")

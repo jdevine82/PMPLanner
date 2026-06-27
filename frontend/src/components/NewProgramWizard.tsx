@@ -415,7 +415,7 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
                 >
                   <option value="">— choose site —</option>
                   {sites.map((s) => (
-                    <option key={s.id} value={s.id}>{s.site_name} — {s.site_address}</option>
+                    <option key={s.id} value={s.id}>{s.site_name}{s.site_address ? ` — ${s.site_address}` : ''}</option>
                   ))}
                 </select>
                 {sites.length === 0 && <p className="text-xs text-gray-400 mt-1">No sites yet — create one below.</p>}
@@ -445,7 +445,7 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
             <>
               <div className="rounded-md bg-blue-50 border border-blue-100 px-3 py-2 text-sm font-medium text-blue-700">New Site</div>
               <div className="space-y-1"><Label>Site Name *</Label><Input value={siteForm.site_name} onChange={(e) => setSiteForm((p) => ({ ...p, site_name: e.target.value }))} /></div>
-              <div className="space-y-1"><Label>Site Address *</Label><Input value={siteForm.site_address} onChange={(e) => setSiteForm((p) => ({ ...p, site_address: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Site Address</Label><Input value={siteForm.site_address} onChange={(e) => setSiteForm((p) => ({ ...p, site_address: e.target.value }))} /></div>
               <button type="button" className="text-sm text-gray-500 hover:underline" onClick={() => setNewSite(false)}>Back to existing sites</button>
             </>
           )}
@@ -455,7 +455,7 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
               onClick={handleSiteNext}
               disabled={
                 createSite.isPending ||
-                (newSite && (!siteForm.site_name || !siteForm.site_address)) ||
+                (newSite && !siteForm.site_name) ||
                 (!newSite && !selectedSite)
               }
             >

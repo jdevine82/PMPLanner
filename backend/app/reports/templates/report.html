@@ -152,6 +152,27 @@
   {% else %}<p class="empty">No service history found for this customer.</p>{% endif %}
 </div>
 
+<!-- ── Section E: Prior Incomplete Jobs ── -->
+<div class="section">
+  <div class="section-title">E &mdash; Prior Months &mdash; Incomplete Jobs</div>
+  {% if prior_incomplete %}
+  <table>
+    <thead><tr><th>Month</th><th>Asset</th><th>Service</th><th>Status</th><th>Est. Hours</th></tr></thead>
+    <tbody>
+      {% for row in prior_incomplete %}
+      <tr>
+        <td><strong>{{ row.month }}</strong></td>
+        <td>{{ row.asset_name }}</td>
+        <td>{{ row.service_title }}</td>
+        <td><span class="badge-approved">{{ row.status }}</span></td>
+        <td>{% if row.estimated_hours %}{{ "%.2f"|format(row.estimated_hours) }}h{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="empty">No incomplete jobs from prior months.</p>{% endif %}
+</div>
+
 <!-- ── Section D: Upcoming Forecast ── -->
 <div class="section">
   <div class="section-title">D &mdash; Upcoming Maintenance Forecast (Next {{ forecast_months }} Months)</div>

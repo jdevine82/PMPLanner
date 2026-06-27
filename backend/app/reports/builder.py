@@ -68,15 +68,31 @@ def build_report(db: Session, customer_id: int, forecast_months: int = 12) -> di
         .all()
     )
 
+    # Jobs from prior months that are not done/refused/completed
+    today = date.today()
+    current_month_year = today.strftime("%Y-%m")
+    prior_incomplete_jobs = (
+        db.query(JobInstance)
+        .filter(
+            JobInstance.schedule_id.in_(schedule_ids),
+            JobInstance.target_month_year < current_month_year,
+            JobInstance.sync_status.notin_(["Completed", "Bypassed"]),
+            JobInstance.approval_status != "Refused by Customer",
+        )
+        .order_by(JobInstance.target_month_year.desc())
+        .all()
+    )
+
     return {
-        "branding":         _build_branding(db),
-        "customer":         _customer_dict(customer),
-        "generated_date":   date.today().isoformat(),
-        "forecast_months":  forecast_months,
-        "asset_inventory":  _build_inventory(assets, asset_map, site_map),
-        "scheduling":       _build_scheduling(schedules, asset_map, template_map),
-        "history":          _build_history(history_jobs, schedule_map, asset_map, template_map),
-        "forecast":         _build_forecast(schedules, asset_map, template_map, forecast_months),
+        "branding":           _build_branding(db),
+        "customer":           _customer_dict(customer),
+        "generated_date":     today.isoformat(),
+        "forecast_months":    forecast_months,
+        "asset_inventory":    _build_inventory(assets, asset_map, site_map),
+        "scheduling":         _build_scheduling(schedules, asset_map, template_map),
+        "history":            _build_history(history_jobs, schedule_map, asset_map, template_map),
+        "forecast":           _build_forecast(schedules, asset_map, template_map, forecast_months),
+        "prior_incomplete":   _build_prior_incomplete(prior_incomplete_jobs, schedule_map, asset_map, template_map),
     }
 
 
@@ -129,6 +145,30 @@ def _build_history(jobs: list[JobInstance], schedule_map: dict, asset_map: dict,
             "actual_hours":    float(j.actual_labor_hours) if j.actual_labor_hours else None,
             "refusal_reason":  j.refusal_reason,
             "sync_status":     j.sync_status,
+        })
+    return rows
+
+
+def _job_combined_status(j: JobInstance) -> str:
+    if j.sync_status == "In-Progress":
+        return "Job in Progress" if j.actual_labor_hours else "Sent to SM8"
+    if j.approval_status == "Waiting Approval":
+        return "Pending Approval"
+    return "Approved"
+
+
+def _build_prior_incomplete(jobs: list[JobInstance], schedule_map: dict, asset_map: dict, template_map: dict) -> list[dict]:
+    rows = []
+    for j in jobs:
+        schedule = schedule_map.get(j.schedule_id)
+        asset    = asset_map.get(schedule.asset_id) if schedule else None
+        template = template_map.get(schedule.service_id) if schedule else None
+        rows.append({
+            "month":           j.target_month_year,
+            "asset_name":      asset.asset_name if asset else "—",
+            "service_title":   template.title if template else "—",
+            "status":          _job_combined_status(j),
+            "estimated_hours": float(schedule.estimated_labor_hours) if schedule else None,
         })
     return rows
 

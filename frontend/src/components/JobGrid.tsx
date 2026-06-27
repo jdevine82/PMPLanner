@@ -25,7 +25,7 @@ export interface ProjectRow {
 type FlatItem =
   | { type: 'project-header'; totalHours: number; count: number }
   | { type: 'project-row'; project: ProjectRow }
-  | { type: 'header'; customerId: number; name: string; jobCount: number; totalHours: number }
+  | { type: 'header'; customerId: number; name: string; phone: string | null; email: string | null; jobCount: number; totalHours: number }
   | { type: 'row'; row: DashboardRow }
 
 interface Props {
@@ -63,7 +63,8 @@ export function JobGrid({ rows, commentCounts, onOpenDetail, onDeleteJob, projec
 
     for (const [customerId, { name, rows: groupRows }] of sorted) {
       const totalHours = groupRows.reduce((s, r) => s + rowEstimatedHours(r), 0)
-      items.push({ type: 'header', customerId, name, jobCount: groupRows.length, totalHours })
+      const { phone, email } = groupRows[0].customer
+      items.push({ type: 'header', customerId, name, phone, email, jobCount: groupRows.length, totalHours })
       if (!collapsed.has(customerId)) {
         for (const row of groupRows) items.push({ type: 'row', row })
       }
@@ -169,6 +170,18 @@ export function JobGrid({ rows, commentCounts, onOpenDetail, onDeleteJob, projec
                     <span className="font-semibold text-sm text-gray-800">{item.name}</span>
                     <span className="text-xs text-gray-400">{item.jobCount} job{item.jobCount !== 1 ? 's' : ''}</span>
                     <span className="text-xs text-gray-400">· {item.totalHours.toFixed(1)}h est.</span>
+                    {(item.phone || item.email) && (
+                      <span className="text-gray-300">·</span>
+                    )}
+                    {item.phone && (
+                      <span className="text-xs text-gray-500">{item.phone}</span>
+                    )}
+                    {item.phone && item.email && (
+                      <span className="text-gray-300">·</span>
+                    )}
+                    {item.email && (
+                      <span className="text-xs text-gray-500">{item.email}</span>
+                    )}
                   </button>
                 ) : (
                   <JobRow

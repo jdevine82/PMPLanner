@@ -134,7 +134,7 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
           onClick={() => onOpenDetail(row)}
         >
           <p className="truncate text-gray-700">{site.site_name}</p>
-          <p className="truncate text-xs text-gray-400">{site.site_address}</p>
+          {site.site_address && <p className="truncate text-xs text-gray-400">{site.site_address}</p>}
         </div>
 
         {/* Asset — clickable */}
