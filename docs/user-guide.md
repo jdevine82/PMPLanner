@@ -85,6 +85,25 @@ Manages the three-level hierarchy: **Customer → Site → Asset**.
 - A schedule links an asset to a service template and defines how often the work should be done (frequency in months).
 - **Add New Program** (the wizard) walks you through creating a schedule in four steps: Customer → Site → Asset → Schedule details.
 
+**Service schedule calendar**
+
+When an asset has more than one schedule (e.g. a 3-monthly and a 12-monthly service), the schedule edit form shows an 18-month calendar grid. Each month cell indicates:
+
+| Colour | Meaning |
+|---|---|
+| Blue | This schedule runs this month |
+| Green | Another schedule on this asset runs this month |
+| Orange | This schedule is due but superseded by a longer-interval service |
+| Gray | No service due this month |
+
+A suggestion message appears below the calendar if the first occurrence of the schedule you are editing falls in the same month as a larger-interval service (meaning it would be skipped). The message shows the next clean month to start from.
+
+**Service link groups**
+
+Location services (site-wide services not tied to a specific asset) can be coordinated across multiple service entries by assigning them the same **link group** name. Schedules sharing a link group at the same site participate in the same skip logic — in any month where more than one linked service falls due, only the longest-interval one runs and the others are automatically advanced to their next cycle.
+
+To assign a link group, type a name in the **Link group** field when editing a schedule. A dropdown shows existing group names already in use at that site. To create a new group, simply type a new name and save. Link groups are scoped to the site — the same name at a different location has no effect on this one.
+
 **Reading the asset list**
 - Assets show a colored dot indicating the status of their active jobs for the current month.
 - A warning icon appears if a prior month's job for that asset was not completed.

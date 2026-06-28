@@ -16,7 +16,8 @@ from app.models.site import Site
 from app.reports.builder import build_report
 from app.reports.call_sheet import build_call_sheet
 from app.reports.excel import generate_excel
-from app.reports.pdf import generate_pdf, generate_call_sheet_pdf
+from app.reports.pdf import generate_pdf, generate_call_sheet_pdf, generate_workload_schedule_pdf
+from app.reports.workload_schedule import build_workload_schedule
 
 router = APIRouter()
 
@@ -80,6 +81,26 @@ def download_call_sheet(
     except Exception as e:
         raise HTTPException(500, f"PDF generation failed: {e}")
     filename = f"Call_Sheet_{month_year}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/workload-schedule/pdf")
+def download_workload_schedule(
+    forecast_months: int = Query(12, ge=1, le=24),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    data = build_workload_schedule(db, forecast_months)
+    try:
+        pdf_bytes = generate_workload_schedule_pdf(data)
+    except Exception as e:
+        raise HTTPException(500, f"PDF generation failed: {e}")
+    from datetime import date
+    filename = f"Workload_Schedule_{date.today().isoformat()}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

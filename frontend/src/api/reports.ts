@@ -56,6 +56,13 @@ export const reportsApi = {
     fetchAndDownload(`/api/v1/reports/call-sheet/${monthYear}/pdf`, `Call_Sheet_${monthYear}.pdf`)
   },
 
+  downloadWorkloadSchedule: (forecastMonths = 12): void => {
+    fetchAndDownload(
+      `/api/v1/reports/workload-schedule/pdf?forecast_months=${forecastMonths}`,
+      `Workload_Schedule_${forecastMonths}mo.pdf`,
+    )
+  },
+
   getIncompletePrior: async (): Promise<IncompletePriorJob[]> => {
     const { data } = await apiClient.get<IncompletePriorJob[]>('/reports/incomplete-prior')
     return data

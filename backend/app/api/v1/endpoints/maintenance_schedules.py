@@ -8,23 +8,81 @@ from app.core.deps import get_current_user, get_db, require_admin, require_staff
 from app.crud import maintenance_schedule as crud
 from app.models.job_instance import JobInstance
 from app.schemas.job_instance import JobInstanceOut
-from app.schemas.maintenance_schedule import MaintenanceScheduleCreate, MaintenanceScheduleOut, MaintenanceScheduleUpdate
+from app.schemas.maintenance_schedule import BulkCombineRequest, MaintenanceScheduleCreate, MaintenanceScheduleOut, MaintenanceScheduleUpdate
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[MaintenanceScheduleOut])
-def list_schedules(asset_id: int | None = None, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def list_schedules(
+    asset_id: int | None = None,
+    site_id: int | None = None,
+    link_group: str | None = None,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    from sqlalchemy import select
+    from app.models.asset import Asset
+    from app.models.maintenance_schedule import MaintenanceSchedule
     if asset_id:
         return crud.get_by_asset(db, asset_id)
-    from sqlalchemy import select
-    from app.models.maintenance_schedule import MaintenanceSchedule
+    if site_id:
+        return db.execute(
+            select(MaintenanceSchedule)
+            .join(Asset, MaintenanceSchedule.asset_id == Asset.id)
+            .where(Asset.site_id == site_id)
+        ).scalars().all()
+    if link_group:
+        return db.execute(
+            select(MaintenanceSchedule).where(MaintenanceSchedule.link_group == link_group)
+        ).scalars().all()
     return db.execute(select(MaintenanceSchedule)).scalars().all()
+
+
+@router.post("/bulk-combine", status_code=200)
+def bulk_combine_by_site_service(
+    data: BulkCombineRequest,
+    db: Session = Depends(get_db),
+    _=Depends(require_staff),
+):
+    from sqlalchemy import select
+    from app.models.asset import Asset
+    from app.models.maintenance_schedule import MaintenanceSchedule
+    schedules = db.execute(
+        select(MaintenanceSchedule)
+        .join(Asset, MaintenanceSchedule.asset_id == Asset.id)
+        .where(Asset.site_id == data.site_id)
+        .where(MaintenanceSchedule.service_id == data.service_id)
+    ).scalars().all()
+    tag = f"svc:{data.service_id}" if data.combine else None
+    for s in schedules:
+        s.sm8_group_tag = tag
+    db.commit()
+    return {"updated": len(schedules)}
 
 
 @router.post("", response_model=MaintenanceScheduleOut, status_code=201)
 def create_schedule(data: MaintenanceScheduleCreate, db: Session = Depends(get_db), _=Depends(require_staff)):
     return crud.create(db, data)
+
+
+@router.get("/link-groups", response_model=list[str])
+def list_link_groups(
+    site_id: int | None = None,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    from sqlalchemy import distinct
+    from app.models.asset import Asset
+    from app.models.maintenance_schedule import MaintenanceSchedule
+    q = (
+        select(distinct(MaintenanceSchedule.link_group))
+        .join(Asset, MaintenanceSchedule.asset_id == Asset.id)
+        .where(MaintenanceSchedule.link_group.isnot(None))
+    )
+    if site_id:
+        q = q.where(Asset.site_id == site_id)
+    return db.execute(q.order_by(MaintenanceSchedule.link_group)).scalars().all()
 
 
 @router.get("/{schedule_id}", response_model=MaintenanceScheduleOut)

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileDown, FileSpreadsheet, Printer, Loader2, AlertTriangle } from 'lucide-react'
+import { FileDown, FileSpreadsheet, Printer, Loader2, AlertTriangle, LayoutList } from 'lucide-react'
 import { customersApi } from '@/api/customers'
 import { reportsApi } from '@/api/reports'
 import { ReportPreview } from '@/components/ReportPreview'
@@ -40,14 +40,25 @@ export default function ReportPage() {
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-gray-200 bg-white px-5 py-3 print:hidden">
         <h1 className="text-base font-semibold">Client Report Generator</h1>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIncompleteOpen(true)}
-        >
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-          Incomplete Prior Jobs
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => reportsApi.downloadWorkloadSchedule(forecastMonths)}
+            title="Download all-customers workload schedule PDF"
+          >
+            <LayoutList className="h-3.5 w-3.5 text-blue-600" />
+            Workload Schedule PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIncompleteOpen(true)}
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+            Incomplete Prior Jobs
+          </Button>
+        </div>
 
         <div className="flex items-center gap-3">
           <div className="space-y-0.5">

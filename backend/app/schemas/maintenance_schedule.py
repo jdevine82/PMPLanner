@@ -3,6 +3,12 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
 
 
+class BulkCombineRequest(BaseModel):
+    site_id: int
+    service_id: int
+    combine: bool
+
+
 class MaintenanceScheduleCreate(BaseModel):
     asset_id: int
     service_id: int
@@ -12,6 +18,7 @@ class MaintenanceScheduleCreate(BaseModel):
     date_next_due: date
     permanent_custom_instructions: str | None = None
     sm8_group_tag: str | None = None
+    link_group: str | None = None
 
 
 class MaintenanceScheduleUpdate(BaseModel):
@@ -23,6 +30,7 @@ class MaintenanceScheduleUpdate(BaseModel):
     date_anchor_next_due: date | None = None
     permanent_custom_instructions: str | None = None
     sm8_group_tag: str | None = None
+    link_group: str | None = None
 
 
 class MaintenanceScheduleOut(BaseModel):
@@ -38,4 +46,5 @@ class MaintenanceScheduleOut(BaseModel):
     date_anchor_next_due: date | None
     permanent_custom_instructions: str | None
     sm8_group_tag: str | None
+    link_group: str | None
     created_at: datetime

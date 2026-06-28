@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    {% if forecast_months <= 12 %}
+    size: A4 landscape;
+    {% else %}
+    size: A3 landscape;
+    {% endif %}
+    margin: 10mm 8mm;
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 7px; color: #6b7280; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: {% if forecast_months <= 12 %}8{% else %}7{% endif %}px;
+    color: #111;
+  }
+
+  .page-header {
+    background: #1d4ed8;
+    color: white;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: 3px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .page-header h1 { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .page-header .meta { font-size: 8px; opacity: 0.85; }
+  .page-header .stats { text-align: right; font-size: 8px; opacity: 0.9; }
+
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
+  col.col-customer { width: 12%; }
+  col.col-task     { width: 15%; }
+  col.col-interval { width: 3.5%; }
+  col.col-hrs      { width: 3%; }
+  col.col-month    { width: {{ "%.4f"|format(66.5 / forecast_months) }}%; }
+
+  thead th {
+    background: #1e3a8a;
+    color: white;
+    font-weight: 700;
+    padding: 3px 3px;
+    border: 1px solid #2563eb;
+    vertical-align: bottom;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  thead th.left { text-align: left; }
+  thead th.center { text-align: center; }
+
+  th.month-hdr { text-align: center; padding: 2px 1px; }
+  th.month-hdr .mo { display: block; font-size: {% if forecast_months <= 12 %}8{% else %}7{% endif %}px; }
+  th.month-hdr .yr { display: block; font-size: 6px; opacity: 0.75; }
+
+  th.year-boundary { background: #1e40af; border-left: 2px solid #60a5fa !important; }
+
+  tbody tr.group-even { background: #f0f9ff; }
+  tbody tr.group-odd  { background: #ffffff; }
+  tbody tr.first-in-group td { border-top: 2px solid #93c5fd; }
+
+  td {
+    padding: 2px 3px;
+    border: 1px solid #e5e7eb;
+    vertical-align: middle;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  td.customer-name { font-weight: 700; color: #1e3a8a; }
+  td.center { text-align: center; }
+  td.hours-cell { text-align: center; font-weight: 700; color: #1d4ed8; background: #dbeafe; }
+  td.hours-high { background: #bfdbfe; color: #1e3a8a; }
+  td.hours-very-high { background: #93c5fd; color: #1e3a8a; }
+  td.empty-cell { text-align: center; color: #d1d5db; }
+
+  tr.totals-row td {
+    background: #fef3c7;
+    font-weight: 700;
+    border-top: 2px solid #f59e0b;
+    text-align: center;
+    color: #92400e;
+    padding: 3px;
+  }
+  tr.totals-row td.total-label { text-align: left; font-size: 8px; letter-spacing: 0.05em; }
+  tr.totals-row td.month-total { font-size: {% if forecast_months <= 12 %}8{% else %}7{% endif %}px; }
+
+  .no-data {
+    padding: 40px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div>
+    <h1>PM Workload Schedule</h1>
+    <p class="meta">Generated {{ generated_date }} &nbsp;·&nbsp; {{ forecast_months }}-month forecast</p>
+  </div>
+  <div class="stats">
+    <div>{{ total_tasks }} scheduled tasks across all customers</div>
+    <div>{{ "%.1f"|format(grand_total_hours) }} total estimated hours</div>
+  </div>
+</div>
+
+{% if rows %}
+<table>
+  <colgroup>
+    <col class="col-customer">
+    <col class="col-task">
+    <col class="col-interval">
+    <col class="col-hrs">
+    {% for _ in month_labels %}<col class="col-month">{% endfor %}
+  </colgroup>
+  <thead>
+    <tr>
+      <th class="left">Customer</th>
+      <th class="left">Task / Service</th>
+      <th class="center">Mo.</th>
+      <th class="center">Hrs</th>
+      {% for label in month_labels %}
+      <th class="month-hdr{% if label.year %} year-boundary{% endif %}">
+        <span class="mo">{{ label.abbr }}</span>
+        {% if label.year %}<span class="yr">{{ label.year }}</span>{% endif %}
+      </th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% set ns = namespace(prev_customer='', group_idx=0) %}
+    {% for row in rows %}
+    {% if row.customer_name != ns.prev_customer %}
+      {% set ns.group_idx = ns.group_idx + 1 %}
+    {% endif %}
+    <tr class="{% if ns.group_idx % 2 == 0 %}group-even{% else %}group-odd{% endif %}{% if row.customer_name != ns.prev_customer %} first-in-group{% endif %}">
+      <td class="customer-name">{% if row.customer_name != ns.prev_customer %}{{ row.customer_name }}{% endif %}</td>
+      <td>{{ row.task_name }}</td>
+      <td class="center">{{ row.frequency }}</td>
+      <td class="center">{{ "%.1f"|format(row.estimated_hours) }}</td>
+      {% for hours in row.month_hours %}
+      {% if hours is not none %}
+        {% if hours >= 20 %}
+        <td class="hours-cell hours-very-high">{{ "%.0f"|format(hours) }}</td>
+        {% elif hours >= 10 %}
+        <td class="hours-cell hours-high">{{ "%.0f"|format(hours) }}</td>
+        {% else %}
+        <td class="hours-cell">{{ "%.1f"|format(hours) }}</td>
+        {% endif %}
+      {% else %}
+      <td class="empty-cell">·</td>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% set ns.prev_customer = row.customer_name %}
+    {% endfor %}
+
+    <tr class="totals-row">
+      <td class="total-label" colspan="3">MONTHLY TOTALS</td>
+      <td>{{ "%.1f"|format(grand_total_hours) }}</td>
+      {% for t in totals %}
+      <td class="month-total">{% if t > 0 %}{{ "%.0f"|format(t) }}{% endif %}</td>
+      {% endfor %}
+    </tr>
+  </tbody>
+</table>
+{% else %}
+<div class="no-data">No scheduled maintenance tasks found.</div>
+{% endif %}
+
+</body>
+</html>

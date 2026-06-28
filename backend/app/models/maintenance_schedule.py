@@ -25,6 +25,7 @@ class MaintenanceSchedule(Base):
     date_anchor_next_due: Mapped[date | None] = mapped_column(Date)
     permanent_custom_instructions: Mapped[str | None] = mapped_column(Text)
     sm8_group_tag: Mapped[str | None] = mapped_column(String(100))
+    link_group: Mapped[str | None] = mapped_column(String(100), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     asset: Mapped["Asset"] = relationship(back_populates="schedules")

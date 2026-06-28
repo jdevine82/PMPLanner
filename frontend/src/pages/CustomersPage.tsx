@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
-import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, Link2, Download, Calendar, ChevronsRight, MapPin, ClipboardList, History, ArrowRightLeft } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, Link2, Download, Calendar, ChevronsRight, MapPin, ClipboardList, History, ArrowRightLeft, Layers } from 'lucide-react'
 import { customersApi } from '@/api/customers'
 import { sitesApi } from '@/api/sites'
 import { assetsApi } from '@/api/assets'
@@ -28,6 +28,160 @@ function addMonthsYM(yyyymm: string, months: number): string {
   const [y, m] = yyyymm.split('-').map(Number)
   const d = new Date(y, m - 1 + months, 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+// ─── Linked schedule calendar helpers ─────────────────────────────────────────
+
+function projectsToMonth(dateNextDue: string, frequencyMonths: number, targetYYYYMM: string): boolean {
+  const due = dateNextDue.slice(0, 7)
+  if (due > targetYYYYMM) return false
+  if (due === targetYYYYMM) return true
+  const [dy, dm] = due.split('-').map(Number)
+  const [ty, tm] = targetYYYYMM.split('-').map(Number)
+  const diff = (ty - dy) * 12 + (tm - dm)
+  const n = Math.ceil(diff / frequencyMonths)
+  return addMonthsYM(due, n * frequencyMonths) === targetYYYYMM
+}
+
+interface CalendarEntry {
+  month: string
+  dueIds: number[]
+  winnerIds: number[]
+  skippedIds: number[]
+}
+
+function computeLinkedCalendar(
+  schedules: Array<{ id: number; date_next_due: string; frequency_months: number }>,
+  windowMonths = 18,
+): CalendarEntry[] {
+  const today = new Date()
+  const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  return Array.from({ length: windowMonths }, (_, i) => {
+    const month = addMonthsYM(start, i)
+    const due = schedules.filter(s => projectsToMonth(s.date_next_due, s.frequency_months, month))
+    if (due.length === 0) return { month, dueIds: [], winnerIds: [], skippedIds: [] }
+    const maxInterval = Math.max(...due.map(s => s.frequency_months))
+    return {
+      month,
+      dueIds: due.map(s => s.id),
+      winnerIds: due.filter(s => s.frequency_months === maxInterval).map(s => s.id),
+      skippedIds: due.filter(s => s.frequency_months < maxInterval).map(s => s.id),
+    }
+  })
+}
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const VIRTUAL_SCHED_ID = -999
+
+function ServiceCalendar({
+  allSchedules,
+  currentScheduleId,
+  currentFrequencyMonths,
+  currentDateNextDue,
+}: {
+  allSchedules: MaintenanceSchedule[]
+  currentScheduleId?: number
+  currentFrequencyMonths: number
+  currentDateNextDue: string
+}) {
+  const thisId = currentScheduleId ?? VIRTUAL_SCHED_ID
+
+  const calendarInput = currentScheduleId != null
+    ? allSchedules.map(s =>
+        s.id === currentScheduleId
+          ? { id: s.id, date_next_due: currentDateNextDue + '-01', frequency_months: currentFrequencyMonths }
+          : { id: s.id, date_next_due: s.date_next_due, frequency_months: s.frequency_months }
+      )
+    : [
+        ...allSchedules.map(s => ({ id: s.id, date_next_due: s.date_next_due, frequency_months: s.frequency_months })),
+        { id: VIRTUAL_SCHED_ID, date_next_due: currentDateNextDue + '-01', frequency_months: currentFrequencyMonths },
+      ]
+
+  const calendar = computeLinkedCalendar(calendarInput, 18)
+
+  const firstDueEntry = calendar.find(e => e.dueIds.includes(thisId))
+  const firstDueWins = firstDueEntry?.winnerIds.includes(thisId) ?? false
+  const firstSkippedByInterval = firstDueEntry && !firstDueWins
+    ? calendarInput.find(s => firstDueEntry.winnerIds.includes(s.id))?.frequency_months
+    : null
+  const nextCleanEntry = calendar.find(e => e.winnerIds.includes(thisId))
+  const runEntries = calendar.filter(e => e.winnerIds.includes(thisId))
+  const skippedEntries = calendar.filter(e => e.skippedIds.includes(thisId))
+
+  function fmtMonth(yyyymm: string) {
+    const [y, m] = yyyymm.split('-').map(Number)
+    const thisYear = new Date().getFullYear()
+    return y === thisYear ? MONTH_ABBR[m - 1] : `${MONTH_ABBR[m - 1]} '${String(y).slice(2)}`
+  }
+
+  return (
+    <div className="rounded-md border border-gray-200 bg-gray-50 p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Service pattern — 18 months</p>
+        <div className="flex items-center gap-2 text-xs text-gray-400">
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-blue-500" />Runs</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-400" />Skipped</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-gray-300" />Other</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-6 gap-1">
+        {calendar.map(({ month, winnerIds, skippedIds, dueIds }) => {
+          const [y, mo] = month.split('-').map(Number)
+          const yearLabel = y !== new Date().getFullYear() ? `'${String(y).slice(2)}` : ''
+          const thisWins = winnerIds.includes(thisId)
+          const thisSkipped = skippedIds.includes(thisId)
+          const winInterval = winnerIds.length > 0
+            ? calendarInput.find(s => winnerIds.includes(s.id))?.frequency_months
+            : null
+
+          return (
+            <div
+              key={month}
+              className={`flex flex-col items-center justify-start gap-0.5 rounded border p-1 text-center ${
+                thisWins ? 'border-blue-300 bg-blue-50' :
+                thisSkipped ? 'border-red-200 bg-red-50' :
+                dueIds.length > 0 ? 'border-gray-200 bg-white' :
+                'border-transparent bg-transparent'
+              }`}
+            >
+              <span className="text-xs leading-tight text-gray-400">
+                {MONTH_ABBR[mo - 1]}{yearLabel && <span className="text-gray-300">{yearLabel}</span>}
+              </span>
+              {thisWins && (
+                <span className="text-xs font-bold leading-tight text-blue-600">{currentFrequencyMonths}m</span>
+              )}
+              {thisSkipped && (
+                <>
+                  <span className="text-xs leading-tight text-red-400 line-through">{currentFrequencyMonths}m</span>
+                  {winInterval != null && <span className="text-xs leading-tight text-gray-400">{winInterval}m</span>}
+                </>
+              )}
+              {!thisWins && !thisSkipped && winInterval != null && (
+                <span className="text-xs leading-tight text-gray-300">{winInterval}m</span>
+              )}
+              {dueIds.length === 0 && <span className="text-xs leading-tight text-gray-200">—</span>}
+            </div>
+          )
+        })}
+      </div>
+      {firstSkippedByInterval != null ? (
+        <div className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
+          <span>⚠</span>
+          <span>
+            First occurrence (<strong>{fmtMonth(firstDueEntry!.month)}</strong>) will be skipped — the {firstSkippedByInterval}m service takes priority.
+            {nextCleanEntry && <> Next clean month: <strong>{fmtMonth(nextCleanEntry.month)}</strong>.</>}
+          </span>
+        </div>
+      ) : runEntries.length > 0 ? (
+        <p className="text-xs text-gray-500">
+          Runs in: <span className="font-medium text-gray-700">{runEntries.map(e => fmtMonth(e.month)).join(', ')}</span>
+          {skippedEntries.length > 0 && (
+            <span className="text-gray-400"> · skipped in: {skippedEntries.map(e => fmtMonth(e.month)).join(', ')}</span>
+          )}
+        </p>
+      ) : null}
+    </div>
+  )
 }
 
 // ─── Customer form ────────────────────────────────────────────────────────────
@@ -106,19 +260,39 @@ function SiteForm({ initial, onSubmit, onCancel, loading }: {
 
 // ─── Sublocation form ─────────────────────────────────────────────────────────
 
-function SublocationForm({ initial, onSubmit, onCancel, loading }: {
-  initial?: Partial<SiteLocation>; onSubmit: (name: string) => void; onCancel: () => void; loading: boolean
+function SublocationForm({ initial, locations = [], initialParentId = null, onSubmit, onCancel, loading }: {
+  initial?: Partial<SiteLocation>
+  locations?: SiteLocation[]
+  initialParentId?: number | null
+  onSubmit: (v: { name: string; parent_id: number | null }) => void
+  onCancel: () => void
+  loading: boolean
 }) {
   const [name, setName] = useState(initial?.name ?? '')
+  const [parentId, setParentId] = useState<number | null>(initial?.parent_id ?? initialParentId ?? null)
+  const parentOptions = locations.filter((l) => l.id !== initial?.id)
   return (
     <div className="space-y-4">
       <div className="space-y-1">
         <Label>Location Name *</Label>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. South Campus Toilet" />
       </div>
+      {parentOptions.length > 0 && (
+        <div className="space-y-1">
+          <Label>Parent Sublocation</Label>
+          <select
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={parentId ?? ''}
+            onChange={(e) => setParentId(e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">None (top-level)</option>
+            {parentOptions.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </div>
+      )}
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button onClick={() => onSubmit(name)} disabled={!name.trim() || loading}>{loading ? 'Saving…' : 'Save'}</Button>
+        <Button onClick={() => onSubmit({ name, parent_id: parentId })} disabled={!name.trim() || loading}>{loading ? 'Saving…' : 'Save'}</Button>
       </div>
     </div>
   )
@@ -176,8 +350,9 @@ function AssetForm({ initial, sublocations, onSubmit, onCancel, loading }: {
 
 // ─── Schedule form ────────────────────────────────────────────────────────────
 
-function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading }: {
-  assetId: number; initial?: Partial<MaintenanceSchedule>; templates: ServiceTemplate[];
+function ScheduleForm({ assetId, siteId, initial, templates, allAssetSchedules, onSubmit, onCancel, loading }: {
+  assetId: number; siteId?: number; initial?: Partial<MaintenanceSchedule>; templates: ServiceTemplate[];
+  allAssetSchedules?: MaintenanceSchedule[];
   onSubmit: (v: Omit<MaintenanceSchedule, 'id' | 'created_at'>) => void; onCancel: () => void; loading: boolean
 }) {
   const today = new Date().toISOString().slice(0, 7)
@@ -192,10 +367,28 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
     date_next_due: initial?.date_next_due?.slice(0, 7) ?? today,
     date_last_done: initial?.date_last_done?.slice(0, 7) ?? '',
     permanent_custom_instructions: initial?.permanent_custom_instructions ?? '',
+    link_group: initial?.link_group ?? null as string | null,
   })
   const autoTag = (svcId: number) => `svc:${svcId}`
   const [combineIntoOne, setCombineIntoOne] = useState(!!initial?.sm8_group_tag)
-  const set = (k: string, v: string | number) => setForm((p) => ({ ...p, [k]: v }))
+  const set = (k: string, v: string | number | null) => setForm((p) => ({ ...p, [k]: v }))
+
+  const debouncedLinkGroup = useDebounce(form.link_group ?? '', 400)
+  const { data: linkedSchedules = [] } = useQuery({
+    queryKey: ['schedules-link-group', debouncedLinkGroup],
+    queryFn: () => schedulesApi.listByLinkGroup(debouncedLinkGroup),
+    enabled: !!debouncedLinkGroup,
+  })
+  const { data: existingLinkGroups = [] } = useQuery({
+    queryKey: ['schedule-link-groups', siteId],
+    queryFn: () => schedulesApi.listLinkGroups(siteId),
+    staleTime: 30_000,
+  })
+
+  // Use linked cross-asset schedules when a link_group is set; fall back to same-asset schedules.
+  const calendarSchedules = (debouncedLinkGroup && linkedSchedules.length > 0)
+    ? linkedSchedules
+    : (allAssetSchedules ?? [])
 
   function handleServiceChange(svcId: number) {
     const t = templates.find((t) => t.id === svcId)
@@ -276,10 +469,42 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
           }))} />
         </div>
       </div>
+      {calendarSchedules.length >= 2 && (
+        <ServiceCalendar
+          allSchedules={calendarSchedules}
+          currentScheduleId={initial?.id}
+          currentFrequencyMonths={parseInt(form.frequency_months) || 3}
+          currentDateNextDue={form.date_next_due}
+        />
+      )}
       <div className="space-y-1">
         <Label>Custom Instructions</Label>
         <textarea className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           rows={3} value={form.permanent_custom_instructions} onChange={(e) => set('permanent_custom_instructions', e.target.value)} placeholder="Permanent notes for technicians…" />
+      </div>
+      <div className="space-y-1.5 rounded-md border border-gray-200 px-3 py-2.5">
+        <p className="text-sm font-medium text-gray-700">Service link group</p>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              list="link-group-datalist"
+              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder={existingLinkGroups.length > 0 ? 'Select a group or type a new name…' : 'Type a new group name…'}
+              value={form.link_group ?? ''}
+              onChange={(e) => set('link_group', e.target.value || null)}
+            />
+            <datalist id="link-group-datalist">
+              {existingLinkGroups.map((g) => <option key={g} value={g} />)}
+            </datalist>
+          </div>
+          {form.link_group && (
+            <Button variant="outline" size="sm" onClick={() => set('link_group', null)}>Clear</Button>
+          )}
+        </div>
+        <p className="text-xs text-gray-400">
+          Schedules sharing the same group name coordinate intervals — the largest interval wins when they fall in the same month. Useful for linking location services across different areas.
+        </p>
       </div>
       <label className="flex items-start gap-3 rounded-md border border-gray-200 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors">
         <input
@@ -307,6 +532,7 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
             date_last_done: form.date_last_done ? form.date_last_done + '-01' : null,
             permanent_custom_instructions: form.permanent_custom_instructions || null,
             sm8_group_tag: combineIntoOne ? autoTag(Number(form.service_id)) : null,
+            link_group: form.link_group || null,
           })}
           disabled={!form.date_next_due || !form.service_id || loading}
         >
@@ -363,7 +589,7 @@ function ScheduleHistory({ scheduleId }: { scheduleId: number }) {
 
 // ─── Schedule section (under asset) ──────────────────────────────────────────
 
-function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; templates: ServiceTemplate[]; readOnly?: boolean }) {
+function ScheduleSection({ assetId, siteId, templates, readOnly }: { assetId: number; siteId?: number; templates: ServiceTemplate[]; readOnly?: boolean }) {
   const qc = useQueryClient()
   const { toast } = useToast()
   const [addOpen, setAddOpen] = useState(false)
@@ -399,6 +625,10 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
     onError: () => toast('Could not pull forward — service may already be due', 'error'),
   })
 
+  const sectionCalendar = schedules.length >= 2
+    ? computeLinkedCalendar(schedules.map(s => ({ id: s.id, date_next_due: s.date_next_due, frequency_months: s.frequency_months })), 12)
+    : []
+
   const templateMap = Object.fromEntries(templates.map((t) => [t.id, t]))
 
   return (
@@ -410,6 +640,18 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
             <div className="flex items-center gap-4 text-xs text-gray-600">
               <span className="font-medium">{templateMap[s.service_id]?.title ?? `Template #${s.service_id}`}</span>
               <span className="text-gray-400">Every {s.frequency_months}mo</span>
+              {schedules.length >= 2 && (() => {
+                const actualRuns = sectionCalendar.filter(e => e.winnerIds.includes(s.id)).length
+                const expectedRuns = Math.round(12 / s.frequency_months)
+                return actualRuns < expectedRuns ? (
+                  <span
+                    className="rounded-full bg-amber-50 px-1.5 py-0.5 text-xs text-amber-600"
+                    title={`Runs ~${actualRuns}× in next 12 months (${expectedRuns}× expected — some months superseded by a higher-interval service)`}
+                  >
+                    ~{actualRuns}×/yr
+                  </span>
+                ) : null
+              })()}
               <span className="text-gray-400">{s.estimated_labor_hours}h est.</span>
               {templateMap[s.service_id]?.historical_average_labor_hours > 0 && (
                 <span className="text-blue-500" title="Historical average from completed jobs">
@@ -429,6 +671,15 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
                 <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700">
                   <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                   Combined
+                </span>
+              )}
+              {s.link_group && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700"
+                  title={`Linked group: ${s.link_group}`}
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                  {s.link_group}
                 </span>
               )}
             </div>
@@ -479,13 +730,13 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
       )}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen} title="New Maintenance Schedule">
-        <ScheduleForm assetId={assetId} templates={templates}
+        <ScheduleForm assetId={assetId} siteId={siteId} templates={templates} allAssetSchedules={schedules}
           onSubmit={(v) => createSchedule.mutate(v as any)}
           onCancel={() => setAddOpen(false)} loading={createSchedule.isPending} />
       </Dialog>
       <Dialog open={!!editSchedule} onOpenChange={(o) => !o && setEditSchedule(null)} title="Edit Schedule">
         {editSchedule && (
-          <ScheduleForm assetId={assetId} initial={editSchedule} templates={templates}
+          <ScheduleForm assetId={assetId} siteId={siteId} initial={editSchedule} templates={templates} allAssetSchedules={schedules}
             onSubmit={(v) => updateSchedule.mutate({ id: editSchedule.id, data: v as any })}
             onCancel={() => setEditSchedule(null)} loading={updateSchedule.isPending} />
         )}
@@ -639,8 +890,9 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
 
 // ─── Asset list (shared between sublocation sections) ─────────────────────────
 
-function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDelete }: {
+function AssetList({ assets, siteId, sublocations, templates, readOnly, onUpdate, onDelete }: {
   assets: Asset[]
+  siteId?: number
   sublocations: SiteLocation[]
   templates: ServiceTemplate[]
   readOnly?: boolean
@@ -679,7 +931,7 @@ function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDele
               </div>
             )}
           </div>
-          {expandedAssets.has(a.id) && <ScheduleSection assetId={a.id} templates={templates} readOnly={readOnly} />}
+          {expandedAssets.has(a.id) && <ScheduleSection assetId={a.id} siteId={siteId} templates={templates} readOnly={readOnly} />}
         </div>
       ))}
 
@@ -705,7 +957,7 @@ function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDele
             )}
           </div>
           <div className="pl-4">
-            <ScheduleSection assetId={a.id} templates={templates} readOnly={readOnly} />
+            <ScheduleSection assetId={a.id} siteId={siteId} templates={templates} readOnly={readOnly} />
           </div>
         </div>
       ))}
@@ -766,6 +1018,7 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
   const [importOpen, setImportOpen] = useState(false)
   const [expandedLocations, setExpandedLocations] = useState<Set<number>>(new Set())
   const [addLocationOpen, setAddLocationOpen] = useState(false)
+  const [addLocationParentId, setAddLocationParentId] = useState<number | null>(null)
   const [editLocation, setEditLocation] = useState<SiteLocation | null>(null)
   const [addCatchAllOpen, setAddCatchAllOpen] = useState(false)
   const [addCatchAllLocationId, setAddCatchAllLocationId] = useState<number | null>(null)
@@ -830,10 +1083,12 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
   })
 
   const createLocation = useMutation({
-    mutationFn: (name: string) => siteLocationsApi.create({ site_id: site.id, name }),
+    mutationFn: ({ name, parent_id }: { name: string; parent_id: number | null }) =>
+      siteLocationsApi.create({ site_id: site.id, name, parent_id }),
     onSuccess: (loc) => {
       qc.invalidateQueries({ queryKey: ['site-locations', site.id] })
       setAddLocationOpen(false)
+      setAddLocationParentId(null)
       setExpandedLocations((prev) => new Set([...prev, loc.id]))
       toast('Sublocation added')
     },
@@ -841,7 +1096,8 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
   })
 
   const updateLocation = useMutation({
-    mutationFn: ({ id, name }: { id: number; name: string }) => siteLocationsApi.update(id, { name }),
+    mutationFn: ({ id, name, parent_id }: { id: number; name: string; parent_id: number | null }) =>
+      siteLocationsApi.update(id, { name, parent_id }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['site-locations', site.id] }); setEditLocation(null); toast('Sublocation updated') },
     onError: () => toast('Failed to update sublocation', 'error'),
   })
@@ -855,6 +1111,51 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
   function toggleLocation(id: number) {
     setExpandedLocations((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
+
+  const { data: siteSchedules = [] } = useQuery({
+    queryKey: ['schedules', 'site', site.id],
+    queryFn: () => schedulesApi.listBySite(site.id),
+  })
+
+  const assetLocationMap = useMemo(() => {
+    const m = new Map<number, number | null>()
+    assets.forEach((a) => m.set(a.id, a.location_id))
+    return m
+  }, [assets])
+
+  const combineServiceOptions = useMemo(() => {
+    const serviceSchedules = new Map<number, MaintenanceSchedule[]>()
+    siteSchedules.forEach((s) => {
+      if (!serviceSchedules.has(s.service_id)) serviceSchedules.set(s.service_id, [])
+      serviceSchedules.get(s.service_id)!.push(s)
+    })
+    return Array.from(serviceSchedules.entries())
+      .filter(([, scheds]) => {
+        const locs = new Set(scheds.map((s) => assetLocationMap.get(s.asset_id)))
+        return locs.size >= 2
+      })
+      .map(([serviceId, scheds]) => {
+        const combinedCount = scheds.filter((s) => !!s.sm8_group_tag).length
+        const status = combinedCount === scheds.length ? 'all' : combinedCount > 0 ? 'some' : 'none'
+        return {
+          serviceId,
+          templateName: templates.find((t) => t.id === serviceId)?.title ?? `Service #${serviceId}`,
+          status: status as 'all' | 'some' | 'none',
+        }
+      })
+      .sort((a, b) => a.templateName.localeCompare(b.templateName))
+  }, [siteSchedules, assetLocationMap, templates])
+
+  const bulkCombineMutation = useMutation({
+    mutationFn: ({ serviceId, combine }: { serviceId: number; combine: boolean }) =>
+      schedulesApi.bulkCombine(site.id, serviceId, combine),
+    onSuccess: (_, { combine }) => {
+      qc.invalidateQueries({ queryKey: ['schedules', 'site', site.id] })
+      qc.invalidateQueries({ queryKey: ['schedules'] })
+      toast(combine ? 'All locations will be combined into one job' : 'Location combining disabled')
+    },
+    onError: () => toast('Failed to update location combining', 'error'),
+  })
 
   function openAddAsset(locationId: number | null = null) {
     setAddAssetLocationId(locationId)
@@ -871,51 +1172,91 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
 
   return (
     <div className="bg-white">
-      {/* Sublocations */}
-      {locations.map((loc) => {
-        const locAssets = locationAssets(loc.id)
-        const expanded = expandedLocations.has(loc.id)
-        return (
-          <div key={loc.id} className="border-b border-gray-100 last:border-0">
-            <div
-              className="flex items-center justify-between px-5 py-2 bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-colors"
-              onClick={() => toggleLocation(loc.id)}
-            >
-              <div className="flex items-center gap-2 text-sm">
-                {expanded ? <ChevronDown className="h-3.5 w-3.5 text-indigo-400" /> : <ChevronRight className="h-3.5 w-3.5 text-indigo-400" />}
-                <MapPin className="h-3.5 w-3.5 text-indigo-400" />
-                <span className="font-medium text-indigo-700">{loc.name}</span>
-                <span className="text-xs text-indigo-400">{locAssets.length} asset{locAssets.length !== 1 ? 's' : ''}</span>
+      {/* Location combining — only shown when 2+ sublocations and at least one eligible service */}
+      {!readOnly && locations.length >= 2 && combineServiceOptions.length > 0 && (
+        <div className="flex items-start gap-3 px-5 py-2.5 bg-violet-50 border-b border-violet-100">
+          <Layers className="h-3.5 w-3.5 text-violet-500 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-violet-700 mb-1.5">Combine locations into one SM8 job</p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {combineServiceOptions.map(({ serviceId, templateName, status }) => (
+                <label key={serviceId} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded"
+                    checked={status !== 'none'}
+                    ref={(el) => { if (el) el.indeterminate = status === 'some' }}
+                    onChange={(e) => bulkCombineMutation.mutate({ serviceId, combine: e.target.checked })}
+                    disabled={bulkCombineMutation.isPending}
+                  />
+                  <span className="text-xs text-violet-800">{templateName}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-violet-500 mt-1">All locations at this site sharing a checked service will dispatch as one job.</p>
+          </div>
+        </div>
+      )}
+      {/* Sublocations — recursive tree */}
+      {(() => {
+        function renderLocation(loc: SiteLocation, depth: number): React.ReactNode {
+          const locAssets = locationAssets(loc.id)
+          const children = locations.filter((l) => l.parent_id === loc.id)
+          const expanded = expandedLocations.has(loc.id)
+          const indentPx = depth * 16
+          return (
+            <div key={loc.id} className="border-b border-gray-100 last:border-0">
+              <div
+                className="flex items-center justify-between py-2 bg-indigo-50 hover:bg-indigo-100 cursor-pointer transition-colors pr-3"
+                style={{ paddingLeft: `${20 + indentPx}px` }}
+                onClick={() => toggleLocation(loc.id)}
+              >
+                <div className="flex items-center gap-2 text-sm">
+                  {expanded ? <ChevronDown className="h-3.5 w-3.5 text-indigo-400" /> : <ChevronRight className="h-3.5 w-3.5 text-indigo-400" />}
+                  <MapPin className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="font-medium text-indigo-700">{loc.name}</span>
+                  <span className="text-xs text-indigo-400">{locAssets.length} asset{locAssets.length !== 1 ? 's' : ''}</span>
+                  {children.length > 0 && <span className="text-xs text-indigo-300">· {children.length} sub</span>}
+                </div>
+                {!readOnly && (
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="sm" onClick={() => openAddAsset(loc.id)} title="Add asset">
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50 hover:text-amber-800" onClick={() => openAddCatchAll(loc.id)}>
+                      <ClipboardList className="h-3 w-3" />Add Service
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-indigo-600 hover:bg-indigo-100" title="Add child sublocation"
+                      onClick={() => { setAddLocationParentId(loc.id); setAddLocationOpen(true) }}>
+                      <MapPin className="h-3 w-3" />+Sub
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditLocation(loc)}><Pencil className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => deleteLocation.mutate(loc.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                )}
               </div>
-              {!readOnly && (
-                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" onClick={() => openAddAsset(loc.id)} title="Add asset to this sublocation">
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-amber-600 hover:bg-amber-50 hover:text-amber-800" onClick={() => openAddCatchAll(loc.id)}>
-                    <ClipboardList className="h-3 w-3" />Add Service
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setEditLocation(loc)}><Pencil className="h-3 w-3" /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => deleteLocation.mutate(loc.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-3 w-3" /></Button>
+              {expanded && (
+                <div>
+                  {children.map((child) => renderLocation(child, depth + 1))}
+                  {locAssets.length === 0 && children.length === 0 && <p className="py-2 text-xs text-gray-400" style={{ paddingLeft: `${36 + indentPx}px` }}>No assets in this sublocation.</p>}
+                  {locAssets.length > 0 && (
+                    <AssetList
+                      assets={locAssets}
+                      siteId={site.id}
+                      sublocations={locations}
+                      templates={templates}
+                      readOnly={readOnly}
+                      onUpdate={(id, data) => updateAsset.mutate({ id, data })}
+                      onDelete={(id) => deleteAsset.mutate(id)}
+                    />
+                  )}
                 </div>
               )}
             </div>
-            {expanded && (
-              <div className="pl-4">
-                {locAssets.length === 0 && <p className="px-5 py-2 text-xs text-gray-400">No assets in this sublocation.</p>}
-                <AssetList
-                  assets={locAssets}
-                  sublocations={locations}
-                  templates={templates}
-                  readOnly={readOnly}
-                  onUpdate={(id, data) => updateAsset.mutate({ id, data })}
-                  onDelete={(id) => deleteAsset.mutate(id)}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
+          )
+        }
+        return locations.filter((l) => l.parent_id == null).map((loc) => renderLocation(loc, 0))
+      })()}
 
       {/* Unassigned assets */}
       {(unassignedAssets.length > 0 || locations.length === 0) && (
@@ -930,6 +1271,7 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
           )}
           <AssetList
             assets={unassignedAssets}
+            siteId={site.id}
             sublocations={locations}
             templates={templates}
             readOnly={readOnly}
@@ -968,15 +1310,22 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
         />
       </Dialog>
 
-      <Dialog open={addLocationOpen} onOpenChange={(o) => !o && setAddLocationOpen(false)} title="Add Sublocation">
-        <SublocationForm onSubmit={(name) => createLocation.mutate(name)} onCancel={() => setAddLocationOpen(false)} loading={createLocation.isPending} />
+      <Dialog open={addLocationOpen} onOpenChange={(o) => { if (!o) { setAddLocationOpen(false); setAddLocationParentId(null) } }} title="Add Sublocation">
+        <SublocationForm
+          locations={locations}
+          initialParentId={addLocationParentId}
+          onSubmit={(v) => createLocation.mutate(v)}
+          onCancel={() => { setAddLocationOpen(false); setAddLocationParentId(null) }}
+          loading={createLocation.isPending}
+        />
       </Dialog>
 
       {editLocation && (
         <Dialog open onOpenChange={(o) => !o && setEditLocation(null)} title="Edit Sublocation">
           <SublocationForm
             initial={editLocation}
-            onSubmit={(name) => updateLocation.mutate({ id: editLocation.id, name })}
+            locations={locations}
+            onSubmit={(v) => updateLocation.mutate({ id: editLocation.id, name: v.name, parent_id: v.parent_id })}
             onCancel={() => setEditLocation(null)}
             loading={updateLocation.isPending}
           />

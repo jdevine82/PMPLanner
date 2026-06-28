@@ -96,16 +96,38 @@ def initialize_month(db: Session, target_month_year: str) -> MonthInitResult:
         if _projects_to_month(s.date_next_due, s.frequency_months, month_start, month_end)
     ]
 
-    # Group by asset so we can apply skip logic: when multiple services for the
-    # same asset are due in the same month, only the longest-interval one is done.
+    # Group schedules for skip logic:
+    # - Schedules with a link_group are grouped cross-asset by (link_group, site_id) so that
+    #   the same group name at different sites does not interfere.
+    # - All other schedules are grouped per-asset (existing behaviour).
+    # Within each group, only the longest-interval service runs; shorter ones are skipped.
+    relevant_asset_ids = {s.asset_id for s in schedules}
+    from app.models.asset import Asset as AssetModel
+    asset_site_map: dict[int, int] = (
+        dict(
+            db.query(AssetModel.id, AssetModel.site_id)
+            .filter(AssetModel.id.in_(relevant_asset_ids))
+            .all()
+        )
+        if relevant_asset_ids
+        else {}
+    )
+
+    by_link_group: dict[tuple[str, int], list[MaintenanceSchedule]] = defaultdict(list)
     by_asset: dict[int, list[MaintenanceSchedule]] = defaultdict(list)
     for s in schedules:
-        by_asset[s.asset_id].append(s)
+        if s.link_group:
+            site_id = asset_site_map.get(s.asset_id, 0)
+            by_link_group[(s.link_group, site_id)].append(s)
+        else:
+            by_asset[s.asset_id].append(s)
+
+    all_groups = list(by_link_group.values()) + list(by_asset.values())
 
     created = 0
     already_existed = 0
 
-    for asset_schedules in by_asset.values():
+    for asset_schedules in all_groups:
         max_interval = max(s.frequency_months for s in asset_schedules)
 
         for schedule in asset_schedules:

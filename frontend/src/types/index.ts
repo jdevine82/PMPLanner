@@ -26,6 +26,7 @@ export interface Site {
 export interface SiteLocation {
   id: number
   site_id: number
+  parent_id: number | null
   name: string
   created_at: string
 }
@@ -77,6 +78,7 @@ export interface MaintenanceSchedule {
   date_anchor_next_due?: string | null
   permanent_custom_instructions: string | null
   sm8_group_tag: string | null
+  link_group: string | null
   created_at: string
 }
 

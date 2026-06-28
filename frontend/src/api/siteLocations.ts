@@ -9,12 +9,12 @@ export const siteLocationsApi = {
     return data
   },
 
-  create: async (payload: { site_id: number; name: string }): Promise<SiteLocation> => {
+  create: async (payload: { site_id: number; name: string; parent_id?: number | null }): Promise<SiteLocation> => {
     const { data } = await apiClient.post<SiteLocation>('/site-locations', payload)
     return data
   },
 
-  update: async (id: number, payload: { name: string }): Promise<SiteLocation> => {
+  update: async (id: number, payload: { name?: string; parent_id?: number | null }): Promise<SiteLocation> => {
     const { data } = await apiClient.patch<SiteLocation>(`/site-locations/${id}`, payload)
     return data
   },

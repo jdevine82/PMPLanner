@@ -6,10 +6,12 @@ from pydantic import BaseModel, ConfigDict
 class SiteLocationCreate(BaseModel):
     site_id: int
     name: str
+    parent_id: int | None = None
 
 
 class SiteLocationUpdate(BaseModel):
     name: str | None = None
+    parent_id: int | None = None
 
 
 class SiteLocationOut(BaseModel):
@@ -17,5 +19,6 @@ class SiteLocationOut(BaseModel):
 
     id: int
     site_id: int
+    parent_id: int | None
     name: str
     created_at: datetime
