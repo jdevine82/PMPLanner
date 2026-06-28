@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
-import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, Link2, Download, Calendar, ChevronsRight, MapPin, ClipboardList, History } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, ChevronDown, ChevronRight, Link2, Download, Calendar, ChevronsRight, MapPin, ClipboardList, History, ArrowRightLeft } from 'lucide-react'
 import { customersApi } from '@/api/customers'
 import { sitesApi } from '@/api/sites'
 import { assetsApi } from '@/api/assets'
@@ -11,16 +11,24 @@ import { servicem8Api } from '@/api/servicem8'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import { Dialog } from '@/components/ui/Dialog'
 import { useToast } from '@/components/ui/Toast'
 import { useDebounce } from '@/hooks/useDebounce'
 import { ServiceM8CustomerSearch } from '@/components/ServiceM8CustomerSearch'
 import { AssetImportModal } from '@/components/AssetImportModal'
+import { AssetTransferModal } from '@/components/AssetTransferModal'
 import { WorkloadForecastFooter } from '@/components/WorkloadForecastFooter'
 import type { Customer, Site, SiteLocation, Asset, MaintenanceSchedule, ServiceTemplate } from '@/types'
 import type { SM8Company } from '@/api/servicem8'
 import { apiClient } from '@/api/client'
 import { toCombinedStatus, COMBINED_STATUS_COLOURS } from '@/lib/jobStatus'
+
+function addMonthsYM(yyyymm: string, months: number): string {
+  const [y, m] = yyyymm.split('-').map(Number)
+  const d = new Date(y, m - 1 + months, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 
 // ─── Customer form ────────────────────────────────────────────────────────────
 
@@ -172,7 +180,7 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
   assetId: number; initial?: Partial<MaintenanceSchedule>; templates: ServiceTemplate[];
   onSubmit: (v: Omit<MaintenanceSchedule, 'id' | 'created_at'>) => void; onCancel: () => void; loading: boolean
 }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toISOString().slice(0, 7)
   const defaultTemplate = templates[0]
   const defaultHours = initial?.estimated_labor_hours
     ?? defaultTemplate?.default_estimated_labor_hours
@@ -181,8 +189,8 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
     service_id: initial?.service_id ?? (defaultTemplate?.id ?? 0),
     estimated_labor_hours: String(defaultHours),
     frequency_months: String(initial?.frequency_months ?? defaultTemplate?.interval_months ?? 3),
-    date_next_due: initial?.date_next_due ?? today,
-    date_last_done: initial?.date_last_done ?? '',
+    date_next_due: initial?.date_next_due?.slice(0, 7) ?? today,
+    date_last_done: initial?.date_last_done?.slice(0, 7) ?? '',
     permanent_custom_instructions: initial?.permanent_custom_instructions ?? '',
   })
   const autoTag = (svcId: number) => `svc:${svcId}`
@@ -238,7 +246,14 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
         <div className="space-y-1">
           <Label>Frequency (months) *</Label>
           <select className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            value={form.frequency_months} onChange={(e) => set('frequency_months', e.target.value)}>
+            value={form.frequency_months} onChange={(e) => {
+              const months = parseInt(e.target.value) || 3
+              setForm(p => ({
+                ...p,
+                frequency_months: e.target.value,
+                date_next_due: p.date_last_done ? addMonthsYM(p.date_last_done, months) : p.date_next_due,
+              }))
+            }}>
             {[1,2,3,6,12,24].map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
           </select>
         </div>
@@ -246,11 +261,19 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label>Next Due Date *</Label>
-          <Input type="date" value={form.date_next_due} onChange={(e) => set('date_next_due', e.target.value)} />
+          <MonthYearPicker value={form.date_next_due} onChange={(v) => setForm(p => ({
+            ...p,
+            date_next_due: v,
+            date_last_done: v ? addMonthsYM(v, -(parseInt(p.frequency_months) || 3)) : p.date_last_done,
+          }))} />
         </div>
         <div className="space-y-1">
           <Label>Last Done Date</Label>
-          <Input type="date" value={form.date_last_done} onChange={(e) => set('date_last_done', e.target.value)} />
+          <MonthYearPicker value={form.date_last_done} onChange={(v) => setForm(p => ({
+            ...p,
+            date_last_done: v,
+            date_next_due: v ? addMonthsYM(v, parseInt(p.frequency_months) || 3) : p.date_next_due,
+          }))} />
         </div>
       </div>
       <div className="space-y-1">
@@ -280,8 +303,8 @@ function ScheduleForm({ assetId, initial, templates, onSubmit, onCancel, loading
             service_id: Number(form.service_id),
             estimated_labor_hours: parseFloat(form.estimated_labor_hours) || 1,
             frequency_months: parseInt(form.frequency_months) || 3,
-            date_next_due: form.date_next_due,
-            date_last_done: form.date_last_done || null,
+            date_next_due: form.date_next_due + '-01',
+            date_last_done: form.date_last_done ? form.date_last_done + '-01' : null,
             permanent_custom_instructions: form.permanent_custom_instructions || null,
             sm8_group_tag: combineIntoOne ? autoTag(Number(form.service_id)) : null,
           })}
@@ -395,9 +418,9 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
               )}
               <span className="flex items-center gap-1 text-gray-400">
                 <Calendar className="h-3 w-3" />
-                Due {s.date_next_due}
+                Due {s.date_next_due.slice(5, 7)}/{s.date_next_due.slice(0, 4)}
                 {s.date_anchor_next_due && (
-                  <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700" title={`Originally due ${s.date_anchor_next_due}`}>
+                  <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700" title={`Originally due ${s.date_anchor_next_due.slice(5, 7)}/${s.date_anchor_next_due.slice(0, 4)}`}>
                     pulled forward
                   </span>
                 )}
@@ -427,7 +450,7 @@ function ScheduleSection({ assetId, templates, readOnly }: { assetId: number; te
                       size="sm"
                       title="Pull service forward to today (next cycle stays on original schedule)"
                       onClick={() => {
-                        if (confirm(`Bring this service forward to today?\n\nThe next cycle after completion will remain on the original date (${s.date_next_due}).`)) {
+                        if (confirm(`Bring this service forward to today?\n\nThe next cycle after completion will remain on the original date (${s.date_next_due.slice(5, 7)}/${s.date_next_due.slice(0, 4)}).`)) {
                           pullForward.mutate(s.id)
                         }
                       }}
@@ -494,7 +517,7 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
   onCancel: () => void
   loading: boolean
 }) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toISOString().slice(0, 7)
   const [form, setForm] = useState({
     label: '',
     location_id: initialLocationId ?? null as number | null,
@@ -550,7 +573,14 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
           </div>
           <div className="space-y-1">
             <Label>Frequency *</Label>
-            <select className={SELECT_CLASS} value={form.frequency_months} onChange={(e) => set('frequency_months', e.target.value)}>
+            <select className={SELECT_CLASS} value={form.frequency_months} onChange={(e) => {
+              const months = parseInt(e.target.value) || 3
+              setForm(p => ({
+                ...p,
+                frequency_months: e.target.value,
+                date_next_due: p.date_last_done ? addMonthsYM(p.date_last_done, months) : p.date_next_due,
+              }))
+            }}>
               {[1, 2, 3, 6, 12, 24].map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
             </select>
           </div>
@@ -558,11 +588,19 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <Label>Next Due Date *</Label>
-            <Input type="date" value={form.date_next_due} onChange={(e) => set('date_next_due', e.target.value)} />
+            <MonthYearPicker value={form.date_next_due} onChange={(v) => setForm(p => ({
+              ...p,
+              date_next_due: v,
+              date_last_done: v ? addMonthsYM(v, -(parseInt(p.frequency_months) || 3)) : p.date_last_done,
+            }))} />
           </div>
           <div className="space-y-1">
             <Label>Last Done Date</Label>
-            <Input type="date" value={form.date_last_done} onChange={(e) => set('date_last_done', e.target.value)} />
+            <MonthYearPicker value={form.date_last_done} onChange={(v) => setForm(p => ({
+              ...p,
+              date_last_done: v,
+              date_next_due: v ? addMonthsYM(v, parseInt(p.frequency_months) || 3) : p.date_next_due,
+            }))} />
           </div>
         </div>
         <div className="space-y-1">
@@ -586,8 +624,8 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
             service_id: form.service_id || templates[0]?.id || 0,
             estimated_labor_hours: parseFloat(form.estimated_labor_hours) || 1,
             frequency_months: parseInt(form.frequency_months) || 3,
-            date_next_due: form.date_next_due,
-            date_last_done: form.date_last_done || null,
+            date_next_due: form.date_next_due + '-01',
+            date_last_done: form.date_last_done ? form.date_last_done + '-01' : null,
             permanent_custom_instructions: form.permanent_custom_instructions || null,
           })}
           disabled={!canSubmit || loading}
@@ -612,6 +650,7 @@ function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDele
   const [expandedAssets, setExpandedAssets] = useState<Set<number>>(new Set())
   const [editAsset, setEditAsset] = useState<Asset | null>(null)
   const [editCatchAllLabel, setEditCatchAllLabel] = useState('')
+  const [transferAsset, setTransferAsset] = useState<Asset | null>(null)
 
   function toggleAsset(id: number) {
     setExpandedAssets((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
@@ -634,6 +673,7 @@ function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDele
             </div>
             {!readOnly && (
               <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" title="Transfer to another site" onClick={() => setTransferAsset(a)} className="text-gray-400 hover:text-blue-600"><ArrowRightLeft className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => setEditAsset(a)}><Pencil className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => onDelete(a.id)} className="text-red-500 hover:text-red-700"><Trash2 className="h-3 w-3" /></Button>
               </div>
@@ -654,6 +694,7 @@ function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDele
             </div>
             {!readOnly && (
               <div className="flex gap-1">
+                <Button variant="ghost" size="sm" title="Transfer to another site" onClick={() => setTransferAsset(a)} className="text-gray-400 hover:text-blue-600"><ArrowRightLeft className="h-3 w-3" /></Button>
                 <Button variant="ghost" size="sm" onClick={() => { setEditAsset(a); setEditCatchAllLabel(a.asset_name) }}>
                   <Pencil className="h-3 w-3" />
                 </Button>
@@ -701,6 +742,15 @@ function AssetList({ assets, sublocations, templates, readOnly, onUpdate, onDele
             </div>
           </div>
         </Dialog>
+      )}
+
+      {transferAsset && (
+        <AssetTransferModal
+          asset={transferAsset}
+          currentSiteId={transferAsset.site_id}
+          open
+          onClose={() => setTransferAsset(null)}
+        />
       )}
     </>
   )

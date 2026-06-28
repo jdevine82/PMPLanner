@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.deps import get_db, require_admin
+from app.db.session import engine
 from app.models.database_backup_log import DatabaseBackupLog
 
 router = APIRouter()
@@ -55,6 +56,19 @@ def create_backup(db: Session = Depends(get_db)):
     db.commit()
     db.refresh(log)
 
+    # Keep only the 5 most recent backups; delete older ones from disk and DB.
+    all_logs = (
+        db.query(DatabaseBackupLog)
+        .order_by(DatabaseBackupLog.created_at.desc())
+        .all()
+    )
+    for old in all_logs[5:]:
+        old_path = BACKUP_DIR / old.filename
+        if old_path.exists():
+            old_path.unlink()
+        db.delete(old)
+    db.commit()
+
     return {
         "filename":        filename,
         "file_size_bytes": file_size,
@@ -94,7 +108,7 @@ def download_backup(filename: str):
 
 @router.get("/logs", dependencies=[Depends(require_admin)])
 def list_backup_logs(db: Session = Depends(get_db)):
-    return db.query(DatabaseBackupLog).order_by(DatabaseBackupLog.created_at.desc()).limit(50).all()
+    return db.query(DatabaseBackupLog).order_by(DatabaseBackupLog.created_at.desc()).limit(5).all()
 
 
 @router.post("/restore", dependencies=[Depends(require_admin)])
@@ -108,14 +122,32 @@ def restore_backup(filename: str, confirmation: str, db: Session = Depends(get_d
 
     conn = _parse_db_url(settings.DATABASE_URL)
 
+    # Close the injected session before running pg_restore so it doesn't hold
+    # locks that would prevent DROP TABLE statements from executing.
+    db.close()
+
     result = subprocess.run(
-        ["pg_restore", "-h", conn["host"], "-p", conn["port"], "-U", conn["user"], "-d", conn["dbname"], "--clean", "--if-exists", str(filepath)],
+        [
+            "pg_restore",
+            "-h", conn["host"], "-p", conn["port"], "-U", conn["user"], "-d", conn["dbname"],
+            "--clean", "--if-exists", "--no-owner", "--no-privileges",
+            str(filepath),
+        ],
         env={**os.environ, "PGPASSWORD": conn["password"]},
         capture_output=True,
         timeout=600,
     )
 
-    if result.returncode != 0:
-        raise HTTPException(500, f"pg_restore failed: {result.stderr.decode()}")
+    # pg_restore exits 1 for warnings (common with --clean) and 3 for fatal errors.
+    # Treat non-3 as success; only fail on actual fatal errors (exit code 3) or
+    # when stderr contains "error:" lines beyond expected cleanup noise.
+    stderr_text = result.stderr.decode()
+    fatal_errors = [ln for ln in stderr_text.splitlines() if "error:" in ln.lower()]
+    if result.returncode >= 3 or (result.returncode != 0 and fatal_errors):
+        raise HTTPException(500, f"pg_restore failed: {stderr_text}")
+
+    # Dispose the connection pool so all stale connections are dropped and
+    # future requests reconnect cleanly to the restored database.
+    engine.dispose()
 
     return {"message": f"Database restored from {filename}"}

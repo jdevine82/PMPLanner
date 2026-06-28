@@ -21,6 +21,11 @@ class AssetUpdate(BaseModel):
     is_catch_all: bool | None = None
 
 
+class AssetTransfer(BaseModel):
+    target_site_id: int
+    target_location_id: int | None = None
+
+
 class AssetOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

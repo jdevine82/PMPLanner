@@ -22,4 +22,12 @@ export const assetsApi = {
   delete: async (id: number): Promise<void> => {
     await apiClient.delete(`/assets/${id}`)
   },
+
+  transfer: async (id: number, targetSiteId: number, targetLocationId: number | null): Promise<Asset> => {
+    const { data } = await apiClient.post<Asset>(`/assets/${id}/transfer`, {
+      target_site_id: targetSiteId,
+      target_location_id: targetLocationId,
+    })
+    return data
+  },
 }

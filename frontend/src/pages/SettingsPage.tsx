@@ -50,7 +50,14 @@ function BackupSection() {
 
   const restoreMutation = useMutation({
     mutationFn: async () => (await apiClient.post('/backup/restore', null, { params: { filename: restoreFilename, confirmation: restoreConfirm } })).data,
-    onSuccess: () => { toast('Database restored successfully'); setRestoreFilename(''); setRestoreConfirm('') },
+    onSuccess: () => {
+      toast('Database restored — reloading app…')
+      setRestoreFilename('')
+      setRestoreConfirm('')
+      // Force a full page reload so the app reconnects cleanly to the restored DB.
+      // All cached state is stale and auth tokens from the restored DB may differ.
+      setTimeout(() => window.location.reload(), 1500)
+    },
     onError: (e: any) => toast(e?.response?.data?.detail ?? 'Restore failed', 'error'),
   })
 

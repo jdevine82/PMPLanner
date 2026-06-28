@@ -12,9 +12,16 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
+import { MonthYearPicker } from '@/components/ui/MonthYearPicker'
 import { useToast } from '@/components/ui/Toast'
 import { cn } from '@/lib/utils'
 import type { Customer, Site, SiteLocation, Asset } from '@/types'
+
+function addMonthsYM(yyyymm: string, months: number): string {
+  const [y, m] = yyyymm.split('-').map(Number)
+  const d = new Date(y, m - 1 + months, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
 
 type Step = 'customer' | 'site' | 'asset' | 'schedule'
 
@@ -66,7 +73,7 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
   const [customerForm, setCustomerForm] = useState({ company_name: '', primary_contact: '', phone: '', email: '' })
   const [siteForm, setSiteForm] = useState({ site_name: '', site_address: '' })
   const [assetForm, setAssetForm] = useState({ asset_name: '', serial_number: '', model_number: '' })
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date().toISOString().slice(0, 7)
   const [scheduleForm, setScheduleForm] = useState({
     service_id: 0,
     estimated_labor_hours: '1',
@@ -165,8 +172,8 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
         service_id: serviceId,
         estimated_labor_hours: parseFloat(catchAllForm.estimated_labor_hours) || 1,
         frequency_months: parseInt(catchAllForm.frequency_months) || 3,
-        date_next_due: catchAllForm.date_next_due,
-        date_last_done: catchAllForm.date_last_done || null,
+        date_next_due: catchAllForm.date_next_due + '-01',
+        date_last_done: catchAllForm.date_last_done ? catchAllForm.date_last_done + '-01' : null,
         permanent_custom_instructions: catchAllForm.permanent_custom_instructions || null,
         sm8_group_tag: null,
       })
@@ -268,8 +275,8 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
       service_id: serviceId,
       estimated_labor_hours: parseFloat(scheduleForm.estimated_labor_hours) || 1,
       frequency_months: parseInt(scheduleForm.frequency_months) || 3,
-      date_next_due: scheduleForm.date_next_due,
-      date_last_done: scheduleForm.date_last_done || null,
+      date_next_due: scheduleForm.date_next_due + '-01',
+      date_last_done: scheduleForm.date_last_done ? scheduleForm.date_last_done + '-01' : null,
       permanent_custom_instructions: scheduleForm.permanent_custom_instructions || null,
       sm8_group_tag: null,
     })
@@ -514,7 +521,14 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
                       <div className="space-y-1">
                         <Label>Frequency *</Label>
                         <select className={SELECT_CLASS} value={catchAllForm.frequency_months}
-                          onChange={(e) => setCatchAllForm((p) => ({ ...p, frequency_months: e.target.value }))}>
+                          onChange={(e) => {
+                            const months = parseInt(e.target.value) || 3
+                            setCatchAllForm(p => ({
+                              ...p,
+                              frequency_months: e.target.value,
+                              date_next_due: p.date_last_done ? addMonthsYM(p.date_last_done, months) : p.date_next_due,
+                            }))
+                          }}>
                           {[1, 3, 6, 12, 24].map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
                         </select>
                       </div>
@@ -522,13 +536,21 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <Label>Next Due Date *</Label>
-                        <Input type="date" value={catchAllForm.date_next_due}
-                          onChange={(e) => setCatchAllForm((p) => ({ ...p, date_next_due: e.target.value }))} />
+                        <MonthYearPicker value={catchAllForm.date_next_due}
+                          onChange={(v) => setCatchAllForm(p => ({
+                            ...p,
+                            date_next_due: v,
+                            date_last_done: v ? addMonthsYM(v, -(parseInt(p.frequency_months) || 3)) : p.date_last_done,
+                          }))} />
                       </div>
                       <div className="space-y-1">
                         <Label>Last Done Date</Label>
-                        <Input type="date" value={catchAllForm.date_last_done}
-                          onChange={(e) => setCatchAllForm((p) => ({ ...p, date_last_done: e.target.value }))} />
+                        <MonthYearPicker value={catchAllForm.date_last_done}
+                          onChange={(v) => setCatchAllForm(p => ({
+                            ...p,
+                            date_last_done: v,
+                            date_next_due: v ? addMonthsYM(v, parseInt(p.frequency_months) || 3) : p.date_next_due,
+                          }))} />
                       </div>
                     </div>
                     <div className="space-y-1">
@@ -705,7 +727,14 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
                   <select
                     className={SELECT_CLASS}
                     value={scheduleForm.frequency_months}
-                    onChange={(e) => setScheduleForm((p) => ({ ...p, frequency_months: e.target.value }))}
+                    onChange={(e) => {
+                      const months = parseInt(e.target.value) || 3
+                      setScheduleForm(p => ({
+                        ...p,
+                        frequency_months: e.target.value,
+                        date_next_due: p.date_last_done ? addMonthsYM(p.date_last_done, months) : p.date_next_due,
+                      }))
+                    }}
                   >
                     {[1, 3, 6, 12, 24].map((m) => <option key={m} value={m}>{m} month{m > 1 ? 's' : ''}</option>)}
                   </select>
@@ -714,13 +743,21 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label>Next Due Date *</Label>
-                  <Input type="date" value={scheduleForm.date_next_due}
-                    onChange={(e) => setScheduleForm((p) => ({ ...p, date_next_due: e.target.value }))} />
+                  <MonthYearPicker value={scheduleForm.date_next_due}
+                    onChange={(v) => setScheduleForm(p => ({
+                      ...p,
+                      date_next_due: v,
+                      date_last_done: v ? addMonthsYM(v, -(parseInt(p.frequency_months) || 3)) : p.date_last_done,
+                    }))} />
                 </div>
                 <div className="space-y-1">
                   <Label>Last Done Date</Label>
-                  <Input type="date" value={scheduleForm.date_last_done}
-                    onChange={(e) => setScheduleForm((p) => ({ ...p, date_last_done: e.target.value }))} />
+                  <MonthYearPicker value={scheduleForm.date_last_done}
+                    onChange={(v) => setScheduleForm(p => ({
+                      ...p,
+                      date_last_done: v,
+                      date_next_due: v ? addMonthsYM(v, parseInt(p.frequency_months) || 3) : p.date_next_due,
+                    }))} />
                 </div>
               </div>
               <div className="space-y-1">
