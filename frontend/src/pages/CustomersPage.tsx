@@ -419,14 +419,22 @@ function ScheduleForm({ assetId, siteId, initial, templates, allAssetSchedules, 
         <div className="space-y-1">
           <Label>Est. Labor Hours *</Label>
           <Input type="number" min="0" step="0.25" value={form.estimated_labor_hours} onChange={(e) => set('estimated_labor_hours', e.target.value)} />
-          {selectedService && (
-            selectedService.historical_average_labor_hours > 0 ? (
+          {selectedService && (() => {
+            const combinedAvg = selectedService.historical_average_labor_hours_combined
+            const soloAvg = selectedService.historical_average_labor_hours_solo
+            const contextAvg = combineIntoOne
+              ? (combinedAvg > 0 ? combinedAvg : soloAvg)
+              : (soloAvg > 0 ? soloAvg : combinedAvg)
+            const label = combineIntoOne
+              ? (combinedAvg > 0 ? 'Combined avg (per asset)' : 'Solo avg (no combined history yet)')
+              : (soloAvg > 0 ? 'Solo avg' : 'Combined avg (no solo history yet)')
+            return contextAvg > 0 ? (
               <div className="flex items-center justify-between rounded-md bg-blue-50 border border-blue-100 px-3 py-1.5">
-                <span className="text-xs text-blue-700">Historical avg: <strong>{selectedService.historical_average_labor_hours}h</strong></span>
+                <span className="text-xs text-blue-700">{label}: <strong>{contextAvg}h</strong></span>
                 <button
                   type="button"
                   className="text-xs font-medium text-blue-600 hover:text-blue-800 underline"
-                  onClick={() => set('estimated_labor_hours', String(selectedService.historical_average_labor_hours))}
+                  onClick={() => set('estimated_labor_hours', String(contextAvg))}
                 >
                   Use avg
                 </button>
@@ -434,7 +442,7 @@ function ScheduleForm({ assetId, siteId, initial, templates, allAssetSchedules, 
             ) : (
               <p className="text-xs text-gray-400">Historical avg: none yet — updated by labor consolidation</p>
             )
-          )}
+          })()}
         </div>
         <div className="space-y-1">
           <Label>Frequency (months) *</Label>
@@ -469,7 +477,7 @@ function ScheduleForm({ assetId, siteId, initial, templates, allAssetSchedules, 
           }))} />
         </div>
       </div>
-      {calendarSchedules.length >= 2 && (
+      {calendarSchedules.length >= (initial?.id != null ? 2 : 1) && (
         <ServiceCalendar
           allSchedules={calendarSchedules}
           currentScheduleId={initial?.id}
@@ -484,22 +492,41 @@ function ScheduleForm({ assetId, siteId, initial, templates, allAssetSchedules, 
       </div>
       <div className="space-y-1.5 rounded-md border border-gray-200 px-3 py-2.5">
         <p className="text-sm font-medium text-gray-700">Service link group</p>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              list="link-group-datalist"
-              className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder={existingLinkGroups.length > 0 ? 'Select a group or type a new name…' : 'Type a new group name…'}
-              value={form.link_group ?? ''}
-              onChange={(e) => set('link_group', e.target.value || null)}
-            />
-            <datalist id="link-group-datalist">
-              {existingLinkGroups.map((g) => <option key={g} value={g} />)}
-            </datalist>
-          </div>
-          {form.link_group && (
-            <Button variant="outline" size="sm" onClick={() => set('link_group', null)}>Clear</Button>
+        <div className="space-y-2">
+          {existingLinkGroups.length > 0 ? (
+            <div className="flex gap-2">
+              <select
+                className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={form.link_group === null ? '' : existingLinkGroups.includes(form.link_group) ? form.link_group : '__new__'}
+                onChange={(e) => {
+                  if (e.target.value === '') set('link_group', null)
+                  else if (e.target.value === '__new__') set('link_group', '')
+                  else set('link_group', e.target.value)
+                }}
+              >
+                <option value="">— None (unlinked) —</option>
+                {existingLinkGroups.map((g) => <option key={g} value={g}>{g}</option>)}
+                <option value="__new__">＋ New group…</option>
+              </select>
+              {form.link_group !== null && (
+                <Button variant="outline" size="sm" onClick={() => set('link_group', null)}>Clear</Button>
+              )}
+            </div>
+          ) : null}
+          {(existingLinkGroups.length === 0 || (form.link_group !== null && !existingLinkGroups.includes(form.link_group as string))) && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                autoFocus={existingLinkGroups.length > 0}
+                className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Type new group name…"
+                value={form.link_group ?? ''}
+                onChange={(e) => set('link_group', e.target.value || (existingLinkGroups.length > 0 ? '' : null))}
+              />
+              {existingLinkGroups.length === 0 && form.link_group && (
+                <Button variant="outline" size="sm" onClick={() => set('link_group', null)}>Clear</Button>
+              )}
+            </div>
           )}
         </div>
         <p className="text-xs text-gray-400">
@@ -758,11 +785,13 @@ type CatchAllSubmitValues = {
   date_next_due: string
   date_last_done: string | null
   permanent_custom_instructions: string | null
+  link_group: string | null
 }
 
-function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSubmit, onCancel, loading }: {
+function CatchAllServiceForm({ sublocations, templates, siteId, initialLocationId, onSubmit, onCancel, loading }: {
   sublocations: SiteLocation[]
   templates: ServiceTemplate[]
+  siteId?: number
   initialLocationId?: number | null
   onSubmit: (v: CatchAllSubmitValues) => void
   onCancel: () => void
@@ -778,8 +807,15 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
     date_next_due: today,
     date_last_done: '',
     permanent_custom_instructions: '',
+    link_group: null as string | null,
   })
   const set = (k: string, v: string | number | null) => setForm((p) => ({ ...p, [k]: v }))
+
+  const { data: existingLinkGroups = [] } = useQuery({
+    queryKey: ['schedule-link-groups', siteId],
+    queryFn: () => schedulesApi.listLinkGroups(siteId),
+    staleTime: 30_000,
+  })
 
   const canSubmit = form.label.trim() && form.date_next_due && (form.service_id || templates[0]?.id)
 
@@ -864,6 +900,49 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
             placeholder="Permanent notes for technicians…"
           />
         </div>
+        <div className="space-y-1.5 rounded-md border border-gray-200 px-3 py-2.5">
+          <p className="text-sm font-medium text-gray-700">Service link group</p>
+          <div className="space-y-2">
+            {existingLinkGroups.length > 0 ? (
+              <div className="flex gap-2">
+                <select
+                  className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  value={form.link_group === null ? '' : existingLinkGroups.includes(form.link_group) ? form.link_group : '__new__'}
+                  onChange={(e) => {
+                    if (e.target.value === '') set('link_group', null)
+                    else if (e.target.value === '__new__') set('link_group', '')
+                    else set('link_group', e.target.value)
+                  }}
+                >
+                  <option value="">— None (unlinked) —</option>
+                  {existingLinkGroups.map((g) => <option key={g} value={g}>{g}</option>)}
+                  <option value="__new__">＋ New group…</option>
+                </select>
+                {form.link_group !== null && (
+                  <Button variant="outline" size="sm" onClick={() => set('link_group', null)}>Clear</Button>
+                )}
+              </div>
+            ) : null}
+            {(existingLinkGroups.length === 0 || (form.link_group !== null && !existingLinkGroups.includes(form.link_group as string))) && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  autoFocus={existingLinkGroups.length > 0}
+                  className="block w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Type new group name…"
+                  value={form.link_group ?? ''}
+                  onChange={(e) => set('link_group', e.target.value || (existingLinkGroups.length > 0 ? '' : null))}
+                />
+                {existingLinkGroups.length === 0 && form.link_group && (
+                  <Button variant="outline" size="sm" onClick={() => set('link_group', null)}>Clear</Button>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-400">
+            Share a group name with other schedules at this site — the largest interval wins when they fall in the same month.
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
@@ -878,6 +957,7 @@ function CatchAllServiceForm({ sublocations, templates, initialLocationId, onSub
             date_next_due: form.date_next_due + '-01',
             date_last_done: form.date_last_done ? form.date_last_done + '-01' : null,
             permanent_custom_instructions: form.permanent_custom_instructions || null,
+            link_group: form.link_group || null,
           })}
           disabled={!canSubmit || loading}
         >
@@ -1059,6 +1139,7 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
         date_last_done: v.date_last_done,
         permanent_custom_instructions: v.permanent_custom_instructions,
         sm8_group_tag: null,
+        link_group: v.link_group,
       })
     },
     onSuccess: () => {
@@ -1336,6 +1417,7 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
         <CatchAllServiceForm
           sublocations={locations}
           templates={templates}
+          siteId={site.id}
           initialLocationId={addCatchAllLocationId}
           onSubmit={(v) => createCatchAllService.mutate(v)}
           onCancel={() => setAddCatchAllOpen(false)}

@@ -43,6 +43,7 @@ class JobInstance(Base):
     assettracker_wo_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     customer_po_link: Mapped[str | None] = mapped_column(String(500))
     actual_labor_hours: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    group_size: Mapped[int] = mapped_column(Integer, default=1)
     approved_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

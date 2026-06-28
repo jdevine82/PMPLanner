@@ -32,6 +32,7 @@ class AssetOut(BaseModel):
     id: int
     site_id: int
     location_id: int | None
+    location_name: str | None
     servicem8_asset_uuid: str | None
     asset_name: str
     serial_number: str | None

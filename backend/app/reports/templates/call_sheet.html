@@ -102,6 +102,7 @@
     <thead>
       <tr>
         <th>Site</th>
+        <th>Location</th>
         <th>Asset</th>
         <th>Service</th>
         <th style="text-align:right;">Est. Hrs</th>
@@ -115,6 +116,7 @@
       {% for job in group.jobs %}
       <tr>
         <td>{{ job.site_name }}</td>
+        <td>{{ job.location_name }}</td>
         <td>{{ job.asset_name }}</td>
         <td>{{ job.service_title }}</td>
         <td style="text-align:right;">{{ "%.1f"|format(job.estimated_hours) }}</td>

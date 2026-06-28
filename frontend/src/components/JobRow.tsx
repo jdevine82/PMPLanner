@@ -109,10 +109,10 @@ export function JobRow({ row, onOpenDetail, onDelete, commentCount = 0 }: Props)
     ? `Incomplete job from ${formatMonth(priorIncomplete[0].month)} — ${priorIncomplete[0].approval_status}`
     : `${priorIncomplete.length} assets have incomplete prior jobs`
 
-  // Asset display
+  // Asset display — prefer location name for location-based services
   const assetLabel = isGrouped
-    ? allRows.map((r) => r.asset.asset_name).join(', ')
-    : asset.asset_name
+    ? allRows.map((r) => r.asset.location_name ?? r.asset.asset_name).join(', ')
+    : (asset.location_name ?? asset.asset_name)
   const assetSub = isGrouped
     ? `${allRows.length} assets combined`
     : (asset.serial_number ? `S/N: ${asset.serial_number}` : null)

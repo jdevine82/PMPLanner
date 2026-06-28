@@ -19,6 +19,8 @@ class ServiceTemplate(Base):
     interval_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     default_estimated_labor_hours: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     historical_average_labor_hours: Mapped[float] = mapped_column(Numeric(5, 2), default=0.00)
+    historical_average_labor_hours_solo: Mapped[float] = mapped_column(Numeric(5, 2), default=0.00)
+    historical_average_labor_hours_combined: Mapped[float] = mapped_column(Numeric(5, 2), default=0.00)
     work_completed: Mapped[str | None] = mapped_column(Text)
     attachments: Mapped[list[Any] | None] = mapped_column(JSON)
     job_badges: Mapped[list[Any] | None] = mapped_column(JSON)

@@ -35,6 +35,7 @@ export interface Asset {
   id: number
   site_id: number
   location_id: number | null
+  location_name: string | null
   servicem8_asset_uuid: string | null
   asset_name: string
   serial_number: string | null
@@ -62,6 +63,8 @@ export interface ServiceTemplate {
   interval_months: number | null
   default_estimated_labor_hours: number | null
   historical_average_labor_hours: number
+  historical_average_labor_hours_solo: number
+  historical_average_labor_hours_combined: number
   work_completed: string | null
   attachments: TemplateAttachment[] | null
   job_badges: SM8Badge[] | null

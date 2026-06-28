@@ -28,3 +28,7 @@ class Asset(Base):
     site: Mapped["Site"] = relationship(back_populates="assets")
     location: Mapped["SiteLocation | None"] = relationship(back_populates="assets")
     schedules: Mapped[list["MaintenanceSchedule"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+
+    @property
+    def location_name(self) -> "str | None":
+        return self.location.name if self.location else None

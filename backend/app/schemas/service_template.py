@@ -13,6 +13,8 @@ class ServiceTemplateOut(BaseModel):
     interval_months: int | None
     default_estimated_labor_hours: float | None
     historical_average_labor_hours: float
+    historical_average_labor_hours_solo: float
+    historical_average_labor_hours_combined: float
     work_completed: str | None
     attachments: list[Any] | None
     job_badges: list[Any] | None

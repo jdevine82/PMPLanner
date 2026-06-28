@@ -68,8 +68,8 @@ export function JobDetailDrawer({ row, onClose }: Props) {
               : <FileText className="h-4 w-4 text-blue-600 shrink-0" />}
             <h2 className="font-semibold text-gray-900 text-sm truncate">
               {isGrouped
-                ? allRows.map((r) => r.asset.asset_name).join(', ')
-                : leadRow?.asset.asset_name}
+                ? allRows.map((r) => r.asset.location_name ?? r.asset.asset_name).join(', ')
+                : (leadRow?.asset.location_name ?? leadRow?.asset.asset_name)}
             </h2>
           </div>
           <p className="mt-0.5 text-xs text-gray-500 truncate">
@@ -93,7 +93,7 @@ export function JobDetailDrawer({ row, onClose }: Props) {
             <ul className="space-y-0.5">
               {allRows.map((r) => (
                 <li key={r.job.id} className="text-xs text-violet-800">
-                  <span className="font-medium">{r.asset.asset_name}</span>
+                  <span className="font-medium">{r.asset.location_name ?? r.asset.asset_name}</span>
                   {r.asset.serial_number && <span className="text-violet-600"> · S/N {r.asset.serial_number}</span>}
                   <span className="text-violet-500"> · {r.schedule.estimated_labor_hours}h est.</span>
                 </li>
@@ -148,7 +148,7 @@ export function JobDetailDrawer({ row, onClose }: Props) {
             <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">Site Instructions</p>
             {allRows.filter((r) => r.schedule.permanent_custom_instructions).map((r) => (
               <div key={r.job.id} className="mb-1 last:mb-0">
-                {isGrouped && <p className="text-xs font-medium text-blue-600">{r.asset.asset_name}</p>}
+                {isGrouped && <p className="text-xs font-medium text-blue-600">{r.asset.location_name ?? r.asset.asset_name}</p>}
                 <p className="text-xs text-blue-800">{r.schedule.permanent_custom_instructions}</p>
               </div>
             ))}

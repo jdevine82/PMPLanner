@@ -70,14 +70,11 @@ def _build_description(
     service_title = template.title if template else "Service"
     lines.append(f"{service_title} – {frequency_months} Monthly")
 
-    # Line 3: assets / locations covered
-    lines.append(", ".join(asset_names))
+    # Line 3: sub-locations when available (more meaningful than repeated asset names), else asset names
+    lines.append(", ".join(sublocation_names) if sublocation_names else ", ".join(asset_names))
 
-    # Line 4: site location and sublocation
-    if sublocation_names:
-        lines.append(f"{site.site_name} > {', '.join(sublocation_names)}")
-    else:
-        lines.append(site.site_name)
+    # Line 4: site name
+    lines.append(site.site_name)
 
     # Line 5: estimated hours
     lines.append(f"Estimated hours: {total_hours}")
@@ -353,10 +350,12 @@ async def consolidate_labor_hours(db: Session) -> dict:
 
             if is_done_in_sm8 or total_hours > 0:
                 per_job_hours = round(total_hours / len(uuid_jobs), 2) if total_hours > 0 else None
+                current_group_size = len(uuid_jobs)
                 template_ids_to_recalc: set[int] = set()
                 for job in uuid_jobs:
                     if per_job_hours is not None:
                         job.actual_labor_hours = per_job_hours
+                    job.group_size = current_group_size
                     if is_done_in_sm8:
                         job.sync_status = "Completed"
                         schedule = db.get(MaintenanceSchedule, job.schedule_id)

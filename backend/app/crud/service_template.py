@@ -62,20 +62,31 @@ def recalculate_average_hours(db: Session, template: ServiceTemplate) -> None:
     from app.models.job_instance import JobInstance
     from app.models.maintenance_schedule import MaintenanceSchedule
 
-    result = (
-        db.query(JobInstance.actual_labor_hours)
+    base_q = (
+        db.query(JobInstance.actual_labor_hours, JobInstance.group_size)
         .join(MaintenanceSchedule, JobInstance.schedule_id == MaintenanceSchedule.id)
         .filter(
             MaintenanceSchedule.service_id == template.id,
             JobInstance.sync_status == "Completed",
             JobInstance.actual_labor_hours.isnot(None),
         )
-        .all()
     )
-    if result:
-        avg = sum(r[0] for r in result) / len(result)
-        template.historical_average_labor_hours = round(avg, 2)
-        db.commit()
+    rows = base_q.all()
+    if not rows:
+        return
+
+    all_hours = [float(r[0]) for r in rows]
+    template.historical_average_labor_hours = round(sum(all_hours) / len(all_hours), 2)
+
+    solo_hours = [float(r[0]) for r in rows if r[1] == 1]
+    if solo_hours:
+        template.historical_average_labor_hours_solo = round(sum(solo_hours) / len(solo_hours), 2)
+
+    combined_hours = [float(r[0]) for r in rows if r[1] > 1]
+    if combined_hours:
+        template.historical_average_labor_hours_combined = round(sum(combined_hours) / len(combined_hours), 2)
+
+    db.commit()
 
 
 def delete(db: Session, template: ServiceTemplate, uploads_dir: str) -> None:

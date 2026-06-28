@@ -10,6 +10,7 @@ from app.models.job_instance import JobInstance
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.service_template import ServiceTemplate
 from app.models.site import Site
+from app.models.site_location import SiteLocation
 
 
 def build_call_sheet(db: Session, month_year: str) -> dict[str, Any]:
@@ -41,6 +42,10 @@ def build_call_sheet(db: Session, month_year: str) -> dict[str, Any]:
     customer_ids = list({s.customer_id for s in sites})
     customers = db.query(Customer).filter(Customer.id.in_(customer_ids)).all()
     customer_map = {c.id: c for c in customers}
+
+    location_ids = list({a.location_id for a in assets if a.location_id is not None})
+    locations = db.query(SiteLocation).filter(SiteLocation.id.in_(location_ids)).all() if location_ids else []
+    location_map = {l.id: l for l in locations}
 
     template_ids = list({s.service_id for s in schedules})
     templates = db.query(ServiceTemplate).filter(ServiceTemplate.id.in_(template_ids)).all()
@@ -74,8 +79,10 @@ def build_call_sheet(db: Session, month_year: str) -> dict[str, Any]:
                 "total_hours": 0.0,
             }
         hours = float(schedule.estimated_labor_hours)
+        loc = location_map.get(asset.location_id) if asset.location_id else None
         groups[cid]["jobs"].append({
             "site_name": site.site_name,
+            "location_name": loc.name if loc else "",
             "asset_name": asset.asset_name,
             "service_title": template.title if template else "—",
             "estimated_hours": hours,
