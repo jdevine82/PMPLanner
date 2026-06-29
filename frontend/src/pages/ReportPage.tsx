@@ -25,7 +25,7 @@ export default function ReportPage() {
     queryFn: () => customersApi.list(undefined, true),
   })
 
-  const { data: reportData, isLoading, isError, refetch } = useQuery({
+  const { data: reportData, isLoading, isError } = useQuery({
     queryKey: ['report', customerId, forecastMonths],
     queryFn: () => reportsApi.getData(customerId!, forecastMonths),
     enabled: !!customerId,

@@ -1141,7 +1141,7 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
 
   const createAsset = useMutation({
     mutationFn: (v: Partial<Asset> & { location_id?: number | null }) =>
-      assetsApi.create({ site_id: site.id, asset_name: v.asset_name!, serial_number: v.serial_number ?? null, model_number: v.model_number ?? null, doc_url: v.doc_url ?? null, location_id: v.location_id ?? null, is_catch_all: false }),
+      assetsApi.create({ site_id: site.id, asset_name: v.asset_name!, serial_number: v.serial_number ?? null, model_number: v.model_number ?? null, doc_url: v.doc_url ?? null, location_id: v.location_id ?? null, location_name: null, is_catch_all: false }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['assets'] }); setAddAssetOpen(false); toast('Asset added') },
     onError: () => toast('Failed to add asset', 'error'),
   })
@@ -1151,10 +1151,12 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
       const asset = await assetsApi.create({
         site_id: site.id,
         location_id: v.location_id,
+        location_name: null,
         asset_name: v.label,
         serial_number: null,
         model_number: null,
         is_catch_all: true,
+        doc_url: null,
       })
       await schedulesApi.create({
         asset_id: asset.id,

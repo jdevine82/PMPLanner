@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { Search, Loader2 } from 'lucide-react'
 import { servicem8Api, type SM8Company } from '@/api/servicem8'
 import { useDebounce } from '@/hooks/useDebounce'
-import { cn } from '@/lib/utils'
 
 interface Props {
   onSelect: (company: SM8Company) => void

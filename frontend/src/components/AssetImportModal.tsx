@@ -39,11 +39,13 @@ export function AssetImportModal({ site, companyUuid, existingAssets, open, onCl
           assetsApi.create({
             site_id: site.id,
             location_id: null,
+            location_name: null,
             servicem8_asset_uuid: a.uuid,
             asset_name: a.name,
             serial_number: a.serial ?? null,
             model_number: a.model ?? null,
             is_catch_all: false,
+            doc_url: null,
           }),
         ),
       )

@@ -162,10 +162,12 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
       const asset = await assetsApi.create({
         site_id: selectedSite!.id,
         location_id: null,
+        location_name: null,
         asset_name: catchAllForm.label.trim(),
         serial_number: null,
         model_number: null,
         is_catch_all: true,
+        doc_url: null,
       })
       await schedulesApi.create({
         asset_id: asset.id,
@@ -176,6 +178,7 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
         date_last_done: catchAllForm.date_last_done ? catchAllForm.date_last_done + '-01' : null,
         permanent_custom_instructions: catchAllForm.permanent_custom_instructions || null,
         sm8_group_tag: null,
+        link_group: null,
       })
     },
     onSuccess: () => {
@@ -257,10 +260,12 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
       createAsset.mutate({
         site_id: selectedSite!.id,
         location_id: newAssetLocationId,
+        location_name: null,
         asset_name: assetForm.asset_name,
         serial_number: assetForm.serial_number || null,
         model_number: assetForm.model_number || null,
         is_catch_all: false,
+        doc_url: null,
       })
     } else if (selectedAsset) {
       setStep('schedule')
@@ -279,6 +284,7 @@ export function NewProgramWizard({ open, onOpenChange }: Props) {
       date_last_done: scheduleForm.date_last_done ? scheduleForm.date_last_done + '-01' : null,
       permanent_custom_instructions: scheduleForm.permanent_custom_instructions || null,
       sm8_group_tag: null,
+      link_group: null,
     })
   }
 
