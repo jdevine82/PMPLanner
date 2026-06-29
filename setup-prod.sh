@@ -41,13 +41,27 @@ echo ""
 echo "==> [1/9] Installing system packages..."
 apt-get update -q
 apt-get install -y \
-  python3.12 python3.12-venv python3-pip \
-  postgresql postgresql-contrib \
+  python3 python3-dev python3-venv python3-pip \
+  postgresql postgresql-contrib libpq-dev \
   nginx \
   nodejs npm \
   git \
+  cargo rustc \
   libpango-1.0-0 libpangoft2-1.0-0 libpangocairo-1.0-0 \
-  libcairo2 libgdk-pixbuf2.0-0 libffi-dev
+  libcairo2 libffi-dev
+
+# Ensure Python 3.12 is available — required for pre-built wheels (3.14+ has none yet)
+if ! command -v python3.12 &>/dev/null; then
+  echo "  Python 3.12 not found — installing via deadsnakes PPA..."
+  apt-get install -y software-properties-common
+  add-apt-repository -y ppa:deadsnakes/ppa
+  apt-get update -q
+  apt-get install -y python3.12 python3.12-venv python3.12-dev
+fi
+
+PYTHON_BIN="python3.12"
+PYTHON_VER="3.12"
+echo "  Using $PYTHON_BIN ($PYTHON_VER)"
 
 # Upgrade Node to 20 if the distro ships something older than 18
 NODE_VER=$(node --version 2>/dev/null | grep -oE '[0-9]+' | head -1 || echo 0)
@@ -78,7 +92,7 @@ if [[ -d "$APP_DIR/.git" ]]; then
   echo "  Repository already present — pulling latest..."
   sudo -u "$APP_USER" git -C "$APP_DIR" pull
 else
-  if [[ -d "$APP_DIR" && "$(ls -A "$APP_DIR" 2>/dev/null)" ]]; then
+  if [[ -d "$APP_DIR" && "$(ls "$APP_DIR" 2>/dev/null)" ]]; then
     echo "ERROR: $APP_DIR is non-empty and not a git repo. Remove it first." >&2
     exit 1
   fi
@@ -87,10 +101,10 @@ else
 fi
 
 # ─── Step 5: Python venv ─────────────────────────────────────────────────────
-echo "==> [5/9] Creating Python 3.12 virtual environment..."
-sudo -u "$APP_USER" python3.12 -m venv "$VENV"
-sudo -u "$APP_USER" "$VENV/bin/pip" install --quiet --upgrade pip
-sudo -u "$APP_USER" "$VENV/bin/pip" install --quiet -r "$APP_DIR/backend/requirements.txt"
+echo "==> [5/9] Creating Python $PYTHON_VER virtual environment..."
+sudo -u "$APP_USER" "$PYTHON_BIN" -m venv --clear "$VENV"
+sudo -u "$APP_USER" "$VENV/bin/pip" install --upgrade pip
+sudo -u "$APP_USER" "$VENV/bin/pip" install --prefer-binary -r "$APP_DIR/backend/requirements.txt"
 
 # ─── Step 6: Env file + uploads dir ──────────────────────────────────────────
 echo "==> [6/9] Writing .env and creating uploads directory..."
@@ -129,7 +143,7 @@ PY
 
 # ─── Step 8: Frontend build ───────────────────────────────────────────────────
 echo "==> [8/9] Building frontend..."
-sudo -u "$APP_USER" bash -c "cd '$APP_DIR/frontend' && npm ci --silent && npm run build"
+sudo -u "$APP_USER" bash -c "cd '$APP_DIR/frontend' && npm ci && npm run build"
 
 # ─── Step 9: systemd + nginx ─────────────────────────────────────────────────
 echo "==> [9/9] Installing systemd service and nginx..."
