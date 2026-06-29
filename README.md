@@ -70,6 +70,8 @@ A preventative maintenance scheduling tool for service businesses. Tracks custom
 
 ## Quick Start
 
+### Local development
+
 See [`LOCAL_SETUP.txt`](LOCAL_SETUP.txt) for full step-by-step instructions.
 
 **Summary:**
@@ -92,6 +94,14 @@ npm run dev
 App: http://localhost:5173  
 API docs: http://localhost:8000/docs  
 Default login: `admin` / `admin123`
+
+### Production deployment (Ubuntu VM / Proxmox)
+
+```bash
+sudo bash setup-prod.sh
+```
+
+The script prompts for the git repository URL, then installs all dependencies, sets up PostgreSQL, builds the frontend, and configures nginx + systemd in one pass. See [`docs/installation-proxmox.md`](docs/installation-proxmox.md) for prerequisites and post-install steps (HTTPS, backups, updates).
 
 ---
 

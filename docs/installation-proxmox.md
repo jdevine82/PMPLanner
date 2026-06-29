@@ -24,201 +24,56 @@ This guide covers deploying PMPlanner on a dedicated Ubuntu/Debian VM inside Pro
 
 ## 2. Prepare the VM
 
-SSH into the VM as root or a sudo user.
+SSH into the VM as root or a sudo user and run a system update:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git python3 python3-pip python3-venv nodejs npm nginx postgresql
 ```
 
-Verify Node is recent enough (18+):
-
-```bash
-node --version   # should be 18+
-```
-
-If the distro ships an older Node, install via NodeSource:
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-```
+No other manual prerequisites are needed — the setup script installs everything else.
 
 ---
 
-## 3. Create a Dedicated System User
+## 3. Run the Setup Script
+
+Copy `setup-prod.sh` from the repo root onto the VM (or clone the repo first and run it from there):
 
 ```bash
-sudo useradd -r -m -d /opt/pmplanner -s /bin/bash pmplanner
+# Option A — rsync the script from your local machine
+rsync -av /home/jasond/Documents/PMPlanner/setup-prod.sh root@<vm-ip>:/root/
+
+# Option B — the script is already on the VM (e.g. after git clone)
 ```
+
+Then run it as root:
+
+```bash
+sudo bash setup-prod.sh
+```
+
+When prompted, enter the git repository URL. The script then performs all remaining steps automatically:
+
+| Step | What it does |
+|---|---|
+| System packages | Python 3.12, PostgreSQL, nginx, Node 20, WeasyPrint libs |
+| App user | Creates the `pmplanner` system user |
+| PostgreSQL | Creates the `pmplanner` role and database (idempotent) |
+| Clone repo | Clones to `/opt/pmplanner` (or pulls if already present) |
+| Python venv | Creates `/opt/pmplanner/venv`, installs `requirements.txt` |
+| `.env` | Writes `/opt/pmplanner/backend/.env` with a fresh `SECRET_KEY` |
+| Migrations | Runs `alembic upgrade head` |
+| Admin user | Creates `admin / admin123` |
+| Frontend | Runs `npm ci && npm run build` |
+| systemd | Installs and starts `pmplanner-backend.service` |
+| nginx | Installs config and reloads nginx |
+
+When the script finishes it prints the app URL and login credentials.
+
+> **After first login:** change the admin password via the Users page.
 
 ---
 
-## 4. Set Up PostgreSQL
-
-```bash
-sudo -u postgres psql <<'SQL'
-CREATE USER pmplanner WITH PASSWORD 'change_this_password';
-CREATE DATABASE pmplanner OWNER pmplanner;
-SQL
-```
-
-> Change `change_this_password` to something strong before deploying.
-
----
-
-## 5. Deploy the Application Code
-
-```bash
-sudo mkdir -p /opt/pmplanner
-sudo chown pmplanner:pmplanner /opt/pmplanner
-sudo -u pmplanner git clone <your-repo-url> /opt/pmplanner/repo
-```
-
-If you are copying from a local machine rather than cloning:
-
-```bash
-rsync -av /home/jasond/Documents/PMPlanner/ pmplanner@<vm-ip>:/opt/pmplanner/repo/
-```
-
----
-
-## 6. Backend Setup
-
-```bash
-sudo -u pmplanner bash -c "
-  python3 -m venv /opt/pmplanner/venv
-  /opt/pmplanner/venv/bin/pip install --upgrade pip
-  /opt/pmplanner/venv/bin/pip install -r /opt/pmplanner/repo/backend/requirements.txt
-"
-```
-
-Create the environment file:
-
-```bash
-sudo -u pmplanner tee /opt/pmplanner/repo/backend/.env > /dev/null <<'ENV'
-DATABASE_URL=postgresql://pmplanner:change_this_password@localhost/pmplanner
-SECRET_KEY=replace_with_a_long_random_string_at_least_32_chars
-ACCESS_TOKEN_EXPIRE_MINUTES=480
-UPLOADS_DIR=/opt/pmplanner/uploads
-ENV
-```
-
-Generate a proper secret key:
-
-```bash
-python3 -c "import secrets; print(secrets.token_hex(32))"
-```
-
-Create the uploads directory:
-
-```bash
-sudo mkdir -p /opt/pmplanner/uploads/logo
-sudo chown -R pmplanner:pmplanner /opt/pmplanner/uploads
-```
-
-Run database migrations:
-
-```bash
-sudo -u pmplanner bash -c "
-  cd /opt/pmplanner/repo/backend
-  /opt/pmplanner/venv/bin/alembic upgrade head
-"
-```
-
----
-
-## 7. Frontend Build
-
-```bash
-sudo -u pmplanner bash -c "
-  cd /opt/pmplanner/repo/frontend
-  npm ci
-  npm run build
-"
-```
-
-The compiled output lands in `/opt/pmplanner/repo/frontend/dist/`.
-
----
-
-## 8. Install the systemd Service
-
-Copy the included service file:
-
-```bash
-sudo cp /opt/pmplanner/repo/backend/deploy/pmplanner-backend.service /etc/systemd/system/
-```
-
-The service file expects:
-- App at `/opt/pmplanner/repo/backend`
-- Venv at `/opt/pmplanner/venv`
-- `.env` at `/opt/pmplanner/repo/backend/.env`
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now pmplanner-backend
-sudo systemctl status pmplanner-backend
-```
-
-Check logs if the service fails to start:
-
-```bash
-sudo journalctl -u pmplanner-backend -n 50
-```
-
----
-
-## 9. Configure nginx
-
-Copy the included nginx config:
-
-```bash
-sudo cp /opt/pmplanner/repo/backend/deploy/nginx-pmplanner.conf /etc/nginx/sites-available/pmplanner
-sudo ln -s /etc/nginx/sites-available/pmplanner /etc/nginx/sites-enabled/pmplanner
-sudo rm -f /etc/nginx/sites-enabled/default
-```
-
-The config serves:
-- `/api/*` → proxied to uvicorn on `127.0.0.1:8000`
-- `/` → static files from the frontend dist build
-
-Test and reload:
-
-```bash
-sudo nginx -t
-sudo systemctl enable --now nginx
-sudo systemctl reload nginx
-```
-
----
-
-## 10. Create the First Admin User
-
-```bash
-sudo -u pmplanner /opt/pmplanner/venv/bin/python3 - <<'PY'
-import sys
-sys.path.insert(0, '/opt/pmplanner/repo/backend')
-import os; os.environ.setdefault('DOTENV_PATH', '/opt/pmplanner/repo/backend/.env')
-
-from app.db.session import SessionLocal
-from app.crud.user import create_user
-from app.schemas.user import UserCreate
-
-db = SessionLocal()
-create_user(db, UserCreate(username='admin', password='changeme', user_role='Admin'))
-db.close()
-print('Admin user created.')
-PY
-```
-
-Log in at `http://<vm-ip>/` with `admin` / `changeme` and change the password immediately via the Users page.
-
----
-
-## 11. Optional — HTTPS with a Self-Signed Certificate
+## 4. Optional — HTTPS with a Self-Signed Certificate
 
 For internal use with a fixed IP, a self-signed cert is sufficient:
 
@@ -230,7 +85,7 @@ sudo openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
   -subj "/CN=pmplanner.local"
 ```
 
-Then update `/etc/nginx/sites-available/pmplanner`:
+Replace `/etc/nginx/sites-available/pmplanner` with:
 
 ```nginx
 server {
@@ -255,11 +110,12 @@ server {
     }
 
     location /uploads/ {
-        alias /opt/pmplanner/uploads/;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
     }
 
     location / {
-        root /opt/pmplanner/repo/frontend/dist;
+        root /opt/pmplanner/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
 }
@@ -271,18 +127,18 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
-## 12. Updating PMPlanner
+## 5. Updating PMPlanner
 
 ```bash
 sudo -u pmplanner bash -c "
-  cd /opt/pmplanner/repo
+  cd /opt/pmplanner
   git pull
 
   # Backend deps (if requirements.txt changed)
-  /opt/pmplanner/venv/bin/pip install -r backend/requirements.txt
+  venv/bin/pip install -r backend/requirements.txt
 
   # Database migrations
-  cd backend && /opt/pmplanner/venv/bin/alembic upgrade head && cd ..
+  cd backend && ../venv/bin/alembic upgrade head && cd ..
 
   # Frontend rebuild
   cd frontend && npm ci && npm run build
@@ -294,20 +150,17 @@ sudo systemctl reload nginx
 
 ---
 
-## 13. Backups
+## 6. Backups
 
 The app has a built-in backup feature (Settings → Database Backup & Restore) that exports a `.sql` dump. For automated server-side backups, add a cron job:
 
 ```bash
+sudo -u pmplanner mkdir -p /opt/pmplanner/backups
 sudo -u pmplanner crontab -e
 ```
 
 ```cron
 0 2 * * * pg_dump -U pmplanner pmplanner | gzip > /opt/pmplanner/backups/$(date +\%Y-\%m-\%d).sql.gz
-```
-
-```bash
-sudo -u pmplanner mkdir -p /opt/pmplanner/backups
 ```
 
 ---
@@ -316,8 +169,9 @@ sudo -u pmplanner mkdir -p /opt/pmplanner/backups
 
 | Symptom | Check |
 |---|---|
-| White screen / 404 on `/` | Frontend dist not built, or nginx root path wrong |
-| API calls return 502 | Backend service not running — `systemctl status pmplanner-backend` |
+| White screen / 404 on `/` | Frontend dist not built — re-run `npm ci && npm run build` in `frontend/` |
+| API calls return 502 | Backend not running — `systemctl status pmplanner-backend` |
 | Database connection error | `.env` `DATABASE_URL` or PostgreSQL user/password mismatch |
-| Uploads not served | `/opt/pmplanner/uploads` ownership or nginx `location /uploads/` missing |
-| Migrations fail | Run `alembic upgrade head` manually and read the error output |
+| Uploads not served | `systemctl status pmplanner-backend` — the backend serves `/uploads/` via FastAPI |
+| Migrations fail | Run `alembic upgrade head` manually from `/opt/pmplanner/backend` and read the error |
+| Script fails mid-way | Fix the reported error, then re-run `sudo bash setup-prod.sh` — PostgreSQL and user creation steps are idempotent |
