@@ -81,6 +81,14 @@ def initialize_month(db: Session, target_month_year: str) -> MonthInitResult:
     month_end = date(year, month, monthrange(year, month)[1])
     is_future_month = month_start > date.today()
 
+    # Delete any unsynced, non-finalised jobs so Refresh is always self-healing.
+    # Approved, dispatched, refused, and cancelled jobs are left untouched.
+    db.query(JobInstance).filter(
+        JobInstance.target_month_year == target_month_year,
+        JobInstance.sync_status == "Unsynced",
+        JobInstance.approval_status.notin_(["Approved", "Refused by Customer", "Cancelled"]),
+    ).delete(synchronize_session=False)
+
     # Fetch all schedules that could possibly land in this month:
     # those whose date_next_due is not yet beyond this month's end.
     candidates = (

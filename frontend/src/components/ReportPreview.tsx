@@ -73,14 +73,15 @@ export function ReportPreview({ data }: Props) {
         <SectionTitle label="B — Scheduling Intervals & Settings" />
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-blue-50 text-blue-900">
-            {['Asset', 'Service', 'Frequency', 'Est. Hours', 'Next Due', 'Last Done'].map((h) => (
+            {['Asset', 'Location', 'Service', 'Frequency', 'Est. Hours', 'Next Due', 'Last Done'].map((h) => (
               <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {data.scheduling.length === 0 ? <EmptyRow cols={6} /> : data.scheduling.map((r, i) => (
+            {data.scheduling.length === 0 ? <EmptyRow cols={7} /> : data.scheduling.map((r, i) => (
               <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                 <td className="border border-gray-200 px-3 py-2 font-medium">{r.asset_name}</td>
+                <td className="border border-gray-200 px-3 py-2 text-gray-500">{r.location}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.service_title}</td>
                 <td className="border border-gray-200 px-3 py-2 text-gray-500">{r.frequency}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.estimated_hours.toFixed(2)}h</td>
@@ -97,15 +98,16 @@ export function ReportPreview({ data }: Props) {
         <SectionTitle label="C — Completed & Refused Service History" />
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-blue-50 text-blue-900">
-            {['Month', 'Asset', 'Service', 'Status', 'Actual Hours', 'Notes / Refusal Reason'].map((h) => (
+            {['Month', 'Asset', 'Location', 'Service', 'Status', 'Actual Hours', 'Notes / Refusal Reason'].map((h) => (
               <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {data.history.length === 0 ? <EmptyRow cols={6} /> : data.history.map((r, i) => (
+            {data.history.length === 0 ? <EmptyRow cols={7} /> : data.history.map((r, i) => (
               <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                 <td className="border border-gray-200 px-3 py-2">{r.month}</td>
                 <td className="border border-gray-200 px-3 py-2 font-medium">{r.asset_name}</td>
+                <td className="border border-gray-200 px-3 py-2 text-gray-500">{r.location}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.service_title}</td>
                 <td className="border border-gray-200 px-3 py-2">
                   {r.status === 'Refused by Customer'
@@ -128,15 +130,16 @@ export function ReportPreview({ data }: Props) {
         <SectionTitle label="E — Prior Months — Incomplete Jobs" />
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-blue-50 text-blue-900">
-            {['Month', 'Asset', 'Service', 'Status', 'Est. Hours'].map((h) => (
+            {['Month', 'Asset', 'Location', 'Service', 'Status', 'Est. Hours'].map((h) => (
               <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {data.prior_incomplete.length === 0 ? <EmptyRow cols={5} /> : data.prior_incomplete.map((r, i) => (
+            {data.prior_incomplete.length === 0 ? <EmptyRow cols={6} /> : data.prior_incomplete.map((r, i) => (
               <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                 <td className="border border-gray-200 px-3 py-2 font-medium">{r.month}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.asset_name}</td>
+                <td className="border border-gray-200 px-3 py-2 text-gray-500">{r.location}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.service_title}</td>
                 <td className="border border-gray-200 px-3 py-2 text-amber-700 font-semibold">{r.status}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.estimated_hours != null ? `${r.estimated_hours.toFixed(2)}h` : '—'}</td>
@@ -151,15 +154,16 @@ export function ReportPreview({ data }: Props) {
         <SectionTitle label={`D — Upcoming Forecast (Next ${data.forecast_months} Months)`} />
         <table className="w-full text-xs border-collapse">
           <thead><tr className="bg-blue-50 text-blue-900">
-            {['Due Date', 'Asset', 'Service', 'Est. Hours'].map((h) => (
+            {['Due Date', 'Asset', 'Location', 'Service', 'Est. Hours'].map((h) => (
               <th key={h} className="border border-gray-200 px-3 py-2 text-left font-semibold">{h}</th>
             ))}
           </tr></thead>
           <tbody>
-            {data.forecast.length === 0 ? <EmptyRow cols={4} /> : data.forecast.map((r, i) => (
+            {data.forecast.length === 0 ? <EmptyRow cols={5} /> : data.forecast.map((r, i) => (
               <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                 <td className="border border-gray-200 px-3 py-2 font-medium">{r.due_date}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.asset_name}</td>
+                <td className="border border-gray-200 px-3 py-2 text-gray-500">{r.location}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.service_title}</td>
                 <td className="border border-gray-200 px-3 py-2">{r.estimated_hours.toFixed(2)}h</td>
               </tr>

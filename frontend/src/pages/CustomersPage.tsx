@@ -307,6 +307,7 @@ function AssetForm({ initial, sublocations, onSubmit, onCancel, loading }: {
     asset_name: initial?.asset_name ?? '',
     serial_number: initial?.serial_number ?? '',
     model_number: initial?.model_number ?? '',
+    doc_url: initial?.doc_url ?? '',
     location_id: initial?.location_id ?? null as number | null,
   })
   return (
@@ -317,6 +318,15 @@ function AssetForm({ initial, sublocations, onSubmit, onCancel, loading }: {
           <Input value={form[key] as string} onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))} />
         </div>
       ))}
+      <div className="space-y-1">
+        <Label>Document Link</Label>
+        <Input
+          type="url"
+          placeholder="https://…"
+          value={form.doc_url}
+          onChange={(e) => setForm((p) => ({ ...p, doc_url: e.target.value }))}
+        />
+      </div>
       {sublocations.length > 0 && (
         <div className="space-y-1">
           <Label>Sublocation</Label>
@@ -337,6 +347,7 @@ function AssetForm({ initial, sublocations, onSubmit, onCancel, loading }: {
             asset_name: form.asset_name,
             serial_number: form.serial_number || null,
             model_number: form.model_number || null,
+            doc_url: form.doc_url || null,
             location_id: form.location_id,
           })}
           disabled={!form.asset_name || loading}
@@ -982,6 +993,7 @@ function AssetList({ assets, siteId, sublocations, templates, readOnly, onUpdate
   const [expandedAssets, setExpandedAssets] = useState<Set<number>>(new Set())
   const [editAsset, setEditAsset] = useState<Asset | null>(null)
   const [editCatchAllLabel, setEditCatchAllLabel] = useState('')
+  const [editCatchAllDocUrl, setEditCatchAllDocUrl] = useState('')
   const [transferAsset, setTransferAsset] = useState<Asset | null>(null)
 
   function toggleAsset(id: number) {
@@ -1000,6 +1012,11 @@ function AssetList({ assets, siteId, sublocations, templates, readOnly, onUpdate
             <div className="flex items-center gap-2 text-sm">
               {expandedAssets.has(a.id) ? <ChevronDown className="h-3.5 w-3.5 text-gray-400" /> : <ChevronRight className="h-3.5 w-3.5 text-gray-400" />}
               <span className="font-medium text-gray-700">{a.asset_name}</span>
+              {a.doc_url && (
+                <a href={a.doc_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Open document link" className="text-blue-400 hover:text-blue-600">
+                  <Link2 className="h-3.5 w-3.5" />
+                </a>
+              )}
               {a.serial_number && <span className="text-xs text-gray-400">S/N: {a.serial_number}</span>}
               {a.model_number && <span className="text-xs text-gray-400">· {a.model_number}</span>}
             </div>
@@ -1022,12 +1039,17 @@ function AssetList({ assets, siteId, sublocations, templates, readOnly, onUpdate
             <div className="flex items-center gap-2 text-sm">
               <ClipboardList className="h-3.5 w-3.5 text-amber-500 shrink-0" />
               <span className="font-medium text-amber-800">{a.asset_name}</span>
+              {a.doc_url && (
+                <a href={a.doc_url} target="_blank" rel="noopener noreferrer" title="Open document link" className="text-amber-500 hover:text-amber-700">
+                  <Link2 className="h-3.5 w-3.5" />
+                </a>
+              )}
               <span className="rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-700">Location service</span>
             </div>
             {!readOnly && (
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" title="Transfer to another site" onClick={() => setTransferAsset(a)} className="text-gray-400 hover:text-blue-600"><ArrowRightLeft className="h-3 w-3" /></Button>
-                <Button variant="ghost" size="sm" onClick={() => { setEditAsset(a); setEditCatchAllLabel(a.asset_name) }}>
+                <Button variant="ghost" size="sm" onClick={() => { setEditAsset(a); setEditCatchAllLabel(a.asset_name); setEditCatchAllDocUrl(a.doc_url ?? '') }}>
                   <Pencil className="h-3 w-3" />
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => onDelete(a.id)} className="text-red-500 hover:text-red-700">
@@ -1063,11 +1085,15 @@ function AssetList({ assets, siteId, sublocations, templates, readOnly, onUpdate
               <Label>Description *</Label>
               <Input value={editCatchAllLabel} onChange={(e) => setEditCatchAllLabel(e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Document Link</Label>
+              <Input type="url" placeholder="https://…" value={editCatchAllDocUrl} onChange={(e) => setEditCatchAllDocUrl(e.target.value)} />
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setEditAsset(null)}>Cancel</Button>
               <Button
                 disabled={!editCatchAllLabel.trim()}
-                onClick={() => { onUpdate(editAsset.id, { asset_name: editCatchAllLabel.trim() }); setEditAsset(null) }}
+                onClick={() => { onUpdate(editAsset.id, { asset_name: editCatchAllLabel.trim(), doc_url: editCatchAllDocUrl || null }); setEditAsset(null) }}
               >
                 Save
               </Button>
@@ -1115,7 +1141,7 @@ function AssetSection({ site, sm8CompanyUuid, templates, readOnly }: { site: Sit
 
   const createAsset = useMutation({
     mutationFn: (v: Partial<Asset> & { location_id?: number | null }) =>
-      assetsApi.create({ site_id: site.id, asset_name: v.asset_name!, serial_number: v.serial_number ?? null, model_number: v.model_number ?? null, location_id: v.location_id ?? null, is_catch_all: false }),
+      assetsApi.create({ site_id: site.id, asset_name: v.asset_name!, serial_number: v.serial_number ?? null, model_number: v.model_number ?? null, doc_url: v.doc_url ?? null, location_id: v.location_id ?? null, is_catch_all: false }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['assets'] }); setAddAssetOpen(false); toast('Asset added') },
     onError: () => toast('Failed to add asset', 'error'),
   })

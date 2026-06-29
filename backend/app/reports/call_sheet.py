@@ -87,6 +87,8 @@ def build_call_sheet(db: Session, month_year: str) -> dict[str, Any]:
             "service_title": template.title if template else "—",
             "estimated_hours": hours,
             "approval_status": job.approval_status,
+            "sync_status": job.sync_status,
+            "servicem8_job_number": job.servicem8_job_number,
         })
         groups[cid]["total_hours"] += hours
 

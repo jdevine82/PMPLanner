@@ -35,11 +35,12 @@
 
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
-  col.col-customer { width: 12%; }
-  col.col-task     { width: 15%; }
+  col.col-customer { width: 10%; }
+  col.col-location { width: 9%; }
+  col.col-task     { width: 13%; }
   col.col-interval { width: 3.5%; }
   col.col-hrs      { width: 3%; }
-  col.col-month    { width: {{ "%.4f"|format(66.5 / forecast_months) }}%; }
+  col.col-month    { width: {{ "%.4f"|format(61.5 / forecast_months) }}%; }
 
   thead th {
     background: #1e3a8a;
@@ -116,6 +117,7 @@
 <table>
   <colgroup>
     <col class="col-customer">
+    <col class="col-location">
     <col class="col-task">
     <col class="col-interval">
     <col class="col-hrs">
@@ -124,6 +126,7 @@
   <thead>
     <tr>
       <th class="left">Customer</th>
+      <th class="left">Location</th>
       <th class="left">Task / Service</th>
       <th class="center">Mo.</th>
       <th class="center">Hrs</th>
@@ -143,6 +146,7 @@
     {% endif %}
     <tr class="{% if ns.group_idx % 2 == 0 %}group-even{% else %}group-odd{% endif %}{% if row.customer_name != ns.prev_customer %} first-in-group{% endif %}">
       <td class="customer-name">{% if row.customer_name != ns.prev_customer %}{{ row.customer_name }}{% endif %}</td>
+      <td>{{ row.location }}</td>
       <td>{{ row.task_name }}</td>
       <td class="center">{{ row.frequency }}</td>
       <td class="center">{{ "%.1f"|format(row.estimated_hours) }}</td>
@@ -164,7 +168,7 @@
     {% endfor %}
 
     <tr class="totals-row">
-      <td class="total-label" colspan="3">MONTHLY TOTALS</td>
+      <td class="total-label" colspan="4">MONTHLY TOTALS</td>
       <td>{{ "%.1f"|format(grand_total_hours) }}</td>
       {% for t in totals %}
       <td class="month-total">{% if t > 0 %}{{ "%.0f"|format(t) }}{% endif %}</td>

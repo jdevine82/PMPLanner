@@ -9,6 +9,7 @@ from app.models.customer import Customer
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.service_template import ServiceTemplate
 from app.models.site import Site
+from app.models.site_location import SiteLocation
 
 
 def build_workload_schedule(db: Session, forecast_months: int = 12) -> dict[str, Any]:
@@ -52,6 +53,10 @@ def build_workload_schedule(db: Session, forecast_months: int = 12) -> dict[str,
     sites = db.query(Site).filter(Site.id.in_(site_ids)).all()
     site_map = {s.id: s for s in sites}
 
+    location_ids = list({a.location_id for a in assets if a.location_id})
+    locations = db.query(SiteLocation).filter(SiteLocation.id.in_(location_ids)).all() if location_ids else []
+    location_map = {loc.id: loc for loc in locations}
+
     customer_ids = list({s.customer_id for s in sites})
     customers = db.query(Customer).filter(Customer.id.in_(customer_ids)).all()
     customer_map = {c.id: c for c in customers}
@@ -80,6 +85,12 @@ def build_workload_schedule(db: Session, forecast_months: int = 12) -> dict[str,
             continue
         template = template_map.get(s.service_id)
 
+        loc = location_map.get(asset.location_id) if asset.location_id else None
+        if loc:
+            location_display = f"{site.site_name} › {loc.name}"
+        else:
+            location_display = site.site_name
+
         hours = float(s.estimated_labor_hours)
         month_hours: list[float | None] = [None] * forecast_months
 
@@ -100,13 +111,14 @@ def build_workload_schedule(db: Session, forecast_months: int = 12) -> dict[str,
             rows.append({
                 "customer_name": customer.company_name,
                 "customer_id": customer.id,
+                "location": location_display,
                 "task_name": template.title if template else "—",
                 "frequency": s.frequency_months,
                 "estimated_hours": hours,
                 "month_hours": month_hours,
             })
 
-    rows.sort(key=lambda r: (r["customer_name"].lower(), r["task_name"].lower()))
+    rows.sort(key=lambda r: (r["customer_name"].lower(), r["location"].lower(), r["task_name"].lower()))
 
     return {
         "generated_date": today.isoformat(),

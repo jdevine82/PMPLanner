@@ -41,6 +41,7 @@ export interface Asset {
   serial_number: string | null
   model_number: string | null
   is_catch_all: boolean
+  doc_url: string | null
   created_at: string
 }
 

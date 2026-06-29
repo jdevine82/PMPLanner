@@ -16,10 +16,10 @@ export interface ReportData {
   generated_date: string
   forecast_months: number
   asset_inventory: Array<{ asset_name: string; serial_number: string; model_number: string; location: string }>
-  scheduling: Array<{ asset_name: string; service_title: string; frequency: string; estimated_hours: number; date_next_due: string; date_last_done: string }>
-  history: Array<{ month: string; asset_name: string; service_title: string; status: string; actual_hours: number | null; refusal_reason: string | null; sync_status: string }>
-  forecast: Array<{ due_date: string; asset_name: string; service_title: string; estimated_hours: number }>
-  prior_incomplete: Array<{ month: string; asset_name: string; service_title: string; status: string; estimated_hours: number | null }>
+  scheduling: Array<{ asset_name: string; location: string; service_title: string; frequency: string; estimated_hours: number; date_next_due: string; date_last_done: string }>
+  history: Array<{ month: string; asset_name: string; location: string; service_title: string; status: string; actual_hours: number | null; refusal_reason: string | null; sync_status: string }>
+  forecast: Array<{ due_date: string; asset_name: string; location: string; service_title: string; estimated_hours: number }>
+  prior_incomplete: Array<{ month: string; asset_name: string; location: string; service_title: string; status: string; estimated_hours: number | null }>
 }
 
 function fetchAndDownload(url: string, filename: string) {

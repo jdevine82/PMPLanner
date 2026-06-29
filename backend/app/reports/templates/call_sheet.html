@@ -106,7 +106,8 @@
         <th>Asset</th>
         <th>Service</th>
         <th style="text-align:right;">Est. Hrs</th>
-        <th>Current Status</th>
+        <th>Status</th>
+        <th style="text-align:center;">SM8 #</th>
         <th style="text-align:center;">✓ App.</th>
         <th style="text-align:center;">✗ Ref.</th>
         <th>Notes</th>
@@ -123,6 +124,8 @@
         <td>
           {% if job.approval_status == "Approved" %}
             <span class="status-approved">Approved</span>
+            {% if job.sync_status == "Completed" %}<br><span style="font-size:8px;color:#6b7280;">Completed</span>{% endif %}
+            {% if job.sync_status == "In-Progress" %}<br><span style="font-size:8px;color:#1d4ed8;">In-Progress</span>{% endif %}
           {% elif job.approval_status == "Refused by Customer" %}
             <span class="status-refused">Refused</span>
           {% elif job.approval_status == "Cancelled" %}
@@ -130,6 +133,9 @@
           {% else %}
             <span class="status-waiting">Awaiting</span>
           {% endif %}
+        </td>
+        <td style="text-align:center; font-weight:700; color:#1e3a8a;">
+          {% if job.servicem8_job_number %}#{{ job.servicem8_job_number }}{% endif %}
         </td>
         <td class="checkbox-col">☐</td>
         <td class="checkbox-col">☐</td>

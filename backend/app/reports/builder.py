@@ -19,6 +19,7 @@ from app.models.job_instance import JobInstance
 from app.models.maintenance_schedule import MaintenanceSchedule
 from app.models.service_template import ServiceTemplate
 from app.models.site import Site
+from app.models.site_location import SiteLocation
 
 
 def _build_branding(db: Session) -> dict:
@@ -48,6 +49,11 @@ def build_report(db: Session, customer_id: int, forecast_months: int = 12) -> di
     asset_ids = [a.id for a in assets]
     asset_map = {a.id: a for a in assets}
     site_map  = {s.id: s for s in sites}
+
+    location_ids = list({a.location_id for a in assets if a.location_id})
+    locs = db.query(SiteLocation).filter(SiteLocation.id.in_(location_ids)).all() if location_ids else []
+    location_map = {loc.id: loc for loc in locs}
+    asset_location_map = {a.id: _location_display(a, site_map, location_map) for a in assets}
 
     schedules = db.query(MaintenanceSchedule).filter(MaintenanceSchedule.asset_id.in_(asset_ids)).all()
     schedule_ids = [s.id for s in schedules]
@@ -88,11 +94,11 @@ def build_report(db: Session, customer_id: int, forecast_months: int = 12) -> di
         "customer":           _customer_dict(customer),
         "generated_date":     today.isoformat(),
         "forecast_months":    forecast_months,
-        "asset_inventory":    _build_inventory(assets, asset_map, site_map),
-        "scheduling":         _build_scheduling(schedules, asset_map, template_map),
-        "history":            _build_history(history_jobs, schedule_map, asset_map, template_map),
-        "forecast":           _build_forecast(schedules, asset_map, template_map, forecast_months),
-        "prior_incomplete":   _build_prior_incomplete(prior_incomplete_jobs, schedule_map, asset_map, template_map),
+        "asset_inventory":    _build_inventory(assets, asset_location_map),
+        "scheduling":         _build_scheduling(schedules, asset_map, template_map, asset_location_map),
+        "history":            _build_history(history_jobs, schedule_map, asset_map, template_map, asset_location_map),
+        "forecast":           _build_forecast(schedules, asset_map, template_map, asset_location_map, forecast_months),
+        "prior_incomplete":   _build_prior_incomplete(prior_incomplete_jobs, schedule_map, asset_map, template_map, asset_location_map),
     }
 
 
@@ -102,49 +108,60 @@ def _customer_dict(c: Customer) -> dict:
     return {"id": c.id, "company_name": c.company_name, "primary_contact": c.primary_contact, "phone": c.phone, "email": c.email}
 
 
-def _build_inventory(assets: list[Asset], asset_map: dict, site_map: dict) -> list[dict]:
+def _location_display(a: Asset, site_map: dict, location_map: dict) -> str:
+    site = site_map.get(a.site_id)
+    site_name = site.site_name if site else "—"
+    if a.location_id:
+        loc = location_map.get(a.location_id)
+        if loc:
+            return f"{site_name} › {loc.name}"
+    return site_name
+
+
+def _build_inventory(assets: list[Asset], asset_location_map: dict) -> list[dict]:
     rows = []
     for a in assets:
-        site = site_map.get(a.site_id)
         rows.append({
-            "asset_name":   a.asset_name,
+            "asset_name":    a.asset_name,
             "serial_number": a.serial_number or "—",
             "model_number":  a.model_number or "—",
-            "location":      site.site_name if site else "—",
+            "location":      asset_location_map.get(a.id, "—"),
         })
     return rows
 
 
-def _build_scheduling(schedules: list[MaintenanceSchedule], asset_map: dict, template_map: dict) -> list[dict]:
+def _build_scheduling(schedules: list[MaintenanceSchedule], asset_map: dict, template_map: dict, asset_location_map: dict) -> list[dict]:
     rows = []
     for s in schedules:
         asset    = asset_map.get(s.asset_id)
         template = template_map.get(s.service_id)
         rows.append({
-            "asset_name":        asset.asset_name if asset else "—",
-            "service_title":     template.title if template else "—",
-            "frequency":         f"Every {s.frequency_months} month(s)",
-            "estimated_hours":   float(s.estimated_labor_hours),
-            "date_next_due":     s.date_next_due.isoformat() if s.date_next_due else "—",
-            "date_last_done":    s.date_last_done.isoformat() if s.date_last_done else "Never",
+            "asset_name":      asset.asset_name if asset else "—",
+            "location":        asset_location_map.get(s.asset_id, "—"),
+            "service_title":   template.title if template else "—",
+            "frequency":       f"Every {s.frequency_months} month(s)",
+            "estimated_hours": float(s.estimated_labor_hours),
+            "date_next_due":   s.date_next_due.isoformat() if s.date_next_due else "—",
+            "date_last_done":  s.date_last_done.isoformat() if s.date_last_done else "Never",
         })
     return rows
 
 
-def _build_history(jobs: list[JobInstance], schedule_map: dict, asset_map: dict, template_map: dict) -> list[dict]:
+def _build_history(jobs: list[JobInstance], schedule_map: dict, asset_map: dict, template_map: dict, asset_location_map: dict) -> list[dict]:
     rows = []
     for j in jobs:
         schedule = schedule_map.get(j.schedule_id)
         asset    = asset_map.get(schedule.asset_id) if schedule else None
         template = template_map.get(schedule.service_id) if schedule else None
         rows.append({
-            "month":           j.target_month_year,
-            "asset_name":      asset.asset_name if asset else "—",
-            "service_title":   template.title if template else "—",
-            "status":          j.approval_status,
-            "actual_hours":    float(j.actual_labor_hours) if j.actual_labor_hours else None,
-            "refusal_reason":  j.refusal_reason,
-            "sync_status":     j.sync_status,
+            "month":          j.target_month_year,
+            "asset_name":     asset.asset_name if asset else "—",
+            "location":       asset_location_map.get(asset.id, "—") if asset else "—",
+            "service_title":  template.title if template else "—",
+            "status":         j.approval_status,
+            "actual_hours":   float(j.actual_labor_hours) if j.actual_labor_hours else None,
+            "refusal_reason": j.refusal_reason,
+            "sync_status":    j.sync_status,
         })
     return rows
 
@@ -157,7 +174,7 @@ def _job_combined_status(j: JobInstance) -> str:
     return "Approved"
 
 
-def _build_prior_incomplete(jobs: list[JobInstance], schedule_map: dict, asset_map: dict, template_map: dict) -> list[dict]:
+def _build_prior_incomplete(jobs: list[JobInstance], schedule_map: dict, asset_map: dict, template_map: dict, asset_location_map: dict) -> list[dict]:
     rows = []
     for j in jobs:
         schedule = schedule_map.get(j.schedule_id)
@@ -166,6 +183,7 @@ def _build_prior_incomplete(jobs: list[JobInstance], schedule_map: dict, asset_m
         rows.append({
             "month":           j.target_month_year,
             "asset_name":      asset.asset_name if asset else "—",
+            "location":        asset_location_map.get(asset.id, "—") if asset else "—",
             "service_title":   template.title if template else "—",
             "status":          _job_combined_status(j),
             "estimated_hours": float(schedule.estimated_labor_hours) if schedule else None,
@@ -177,6 +195,7 @@ def _build_forecast(
     schedules: list[MaintenanceSchedule],
     asset_map: dict,
     template_map: dict,
+    asset_location_map: dict,
     forecast_months: int,
 ) -> list[dict]:
     today    = date.today()
@@ -196,9 +215,10 @@ def _build_forecast(
         while current <= cutoff:
             if current >= today:
                 rows.append({
-                    "due_date":       current.isoformat(),
-                    "asset_name":     asset.asset_name if asset else "—",
-                    "service_title":  template.title if template else "—",
+                    "due_date":        current.isoformat(),
+                    "asset_name":      asset.asset_name if asset else "—",
+                    "location":        asset_location_map.get(s.asset_id, "—"),
+                    "service_title":   template.title if template else "—",
                     "estimated_hours": float(s.estimated_labor_hours),
                 })
             # advance by frequency

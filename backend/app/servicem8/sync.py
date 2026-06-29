@@ -59,6 +59,7 @@ def _build_description(
     total_hours: float,
     service_month_year: str,
     custom_instructions: list[str],
+    doc_urls: list[str] | None = None,
 ) -> str:
     """Build the formatted SM8 job description."""
     lines: list[str] = []
@@ -79,7 +80,11 @@ def _build_description(
     # Line 5: estimated hours
     lines.append(f"Estimated hours: {total_hours}")
 
-    # Attachment hyperlinks
+    # Asset document links
+    for url in (doc_urls or []):
+        lines.append(url)
+
+    # Template attachment hyperlinks
     if template and template.attachments:
         for att in template.attachments:
             if not isinstance(att, dict):
@@ -131,6 +136,7 @@ async def _dispatch_single(db: Session, job: JobInstance) -> tuple[str, int | No
         total_hours=float(schedule.estimated_labor_hours),
         service_month_year=job.target_month_year,
         custom_instructions=custom_instructions,
+        doc_urls=[asset.doc_url] if asset.doc_url else [],
     )
     logger.info("Dispatching job %d — description:\n%s", job.id, description)
 
@@ -166,6 +172,8 @@ async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> tuple[s
     frequency_months = first_schedule.frequency_months
     custom_instructions: list[str] = []
 
+    doc_urls: list[str] = []
+
     for job in group_jobs:
         sched = db.get(MaintenanceSchedule, job.schedule_id)
         asset = db.get(Asset, sched.asset_id)
@@ -178,6 +186,8 @@ async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> tuple[s
                 seen_subloc.add(asset.location_id)
         if sched.permanent_custom_instructions:
             custom_instructions.append(f"{asset.asset_name}: {sched.permanent_custom_instructions}")
+        if asset.doc_url:
+            doc_urls.append(f"{asset.asset_name}: {asset.doc_url}" if len(group_jobs) > 1 else asset.doc_url)
 
     description = _build_description(
         template=template,
@@ -188,6 +198,7 @@ async def _dispatch_group(db: Session, group_jobs: list[JobInstance]) -> tuple[s
         total_hours=round(total_hours, 2),
         service_month_year=first_job.target_month_year,
         custom_instructions=custom_instructions,
+        doc_urls=doc_urls,
     )
 
     payload = {
@@ -383,11 +394,13 @@ async def consolidate_labor_hours(db: Session) -> dict:
 
 
 def _advance_next_due(schedule: MaintenanceSchedule) -> None:
-    """Advance date_next_due by frequency_months from today.
+    """Advance date_next_due by one or more frequency cycles, preserving original cadence.
 
     If date_anchor_next_due is set (meaning the job was pulled forward), restore
-    the original scheduled date instead of advancing from today, so the subsequent
-    cycle stays on the original cadence."""
+    the original scheduled date instead, so the subsequent cycle stays on cadence.
+
+    Otherwise, advance from the current scheduled date (not from today) so the
+    original month/day pattern is kept even when jobs complete late or early."""
     from calendar import monthrange
     from datetime import date
 
@@ -397,8 +410,18 @@ def _advance_next_due(schedule: MaintenanceSchedule) -> None:
         return
 
     today = date.today()
-    m = today.month + schedule.frequency_months
-    y = today.year + (m - 1) // 12
+    base = schedule.date_next_due
+    # Advance by at least one full cycle from the scheduled date
+    m = base.month + schedule.frequency_months
+    y = base.year + (m - 1) // 12
     m = (m - 1) % 12 + 1
     last_day = monthrange(y, m)[1]
-    schedule.date_next_due = date(y, m, min(today.day, last_day))
+    base = date(y, m, min(base.day, last_day))
+    # If still in the past (heavily overdue), keep stepping forward
+    while base <= today:
+        m = base.month + schedule.frequency_months
+        y = base.year + (m - 1) // 12
+        m = (m - 1) % 12 + 1
+        last_day = monthrange(y, m)[1]
+        base = date(y, m, min(base.day, last_day))
+    schedule.date_next_due = base

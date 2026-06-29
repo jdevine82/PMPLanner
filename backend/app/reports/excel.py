@@ -47,49 +47,53 @@ def generate_excel(report_data: dict[str, Any]) -> bytes:
 
     # ── Sheet B: Scheduling ──────────────────────────────────────────────────
     ws_b = wb.create_sheet("Scheduling")
-    _header_row(ws_b, ["Asset", "Service Template", "Frequency", "Est. Hours", "Next Due", "Last Done"], 1)
+    _header_row(ws_b, ["Asset", "Location", "Service Template", "Frequency", "Est. Hours", "Next Due", "Last Done"], 1)
     for i, row in enumerate(report_data["scheduling"], 2):
         ws_b.cell(i, 1, row["asset_name"])
-        ws_b.cell(i, 2, row["service_title"])
-        ws_b.cell(i, 3, row["frequency"])
-        ws_b.cell(i, 4, row["estimated_hours"])
-        ws_b.cell(i, 5, row["date_next_due"])
-        ws_b.cell(i, 6, row["date_last_done"])
+        ws_b.cell(i, 2, row["location"])
+        ws_b.cell(i, 3, row["service_title"])
+        ws_b.cell(i, 4, row["frequency"])
+        ws_b.cell(i, 5, row["estimated_hours"])
+        ws_b.cell(i, 6, row["date_next_due"])
+        ws_b.cell(i, 7, row["date_last_done"])
     _auto_width(ws_b)
 
     # ── Sheet C: Service History ─────────────────────────────────────────────
     ws_c = wb.create_sheet("Service History")
-    _header_row(ws_c, ["Month", "Asset", "Service", "Status", "Actual Hours", "Refusal Reason"], 1)
+    _header_row(ws_c, ["Month", "Asset", "Location", "Service", "Status", "Actual Hours", "Refusal Reason"], 1)
     for i, row in enumerate(report_data["history"], 2):
         ws_c.cell(i, 1, row["month"])
         ws_c.cell(i, 2, row["asset_name"])
-        ws_c.cell(i, 3, row["service_title"])
-        status_cell = ws_c.cell(i, 4, row["status"])
+        ws_c.cell(i, 3, row["location"])
+        ws_c.cell(i, 4, row["service_title"])
+        status_cell = ws_c.cell(i, 5, row["status"])
         if row["status"] == "Refused by Customer":
             status_cell.font = REFUSED_FONT
-        ws_c.cell(i, 5, row["actual_hours"])
-        ws_c.cell(i, 6, row["refusal_reason"] or "")
+        ws_c.cell(i, 6, row["actual_hours"])
+        ws_c.cell(i, 7, row["refusal_reason"] or "")
     _auto_width(ws_c)
 
     # ── Sheet D: Forecast ────────────────────────────────────────────────────
     ws_d = wb.create_sheet(f"Forecast ({report_data['forecast_months']}mo)")
-    _header_row(ws_d, ["Due Date", "Asset", "Service Template", "Est. Hours"], 1)
+    _header_row(ws_d, ["Due Date", "Asset", "Location", "Service Template", "Est. Hours"], 1)
     for i, row in enumerate(report_data["forecast"], 2):
         ws_d.cell(i, 1, row["due_date"])
         ws_d.cell(i, 2, row["asset_name"])
-        ws_d.cell(i, 3, row["service_title"])
-        ws_d.cell(i, 4, row["estimated_hours"])
+        ws_d.cell(i, 3, row["location"])
+        ws_d.cell(i, 4, row["service_title"])
+        ws_d.cell(i, 5, row["estimated_hours"])
     _auto_width(ws_d)
 
     # ── Sheet E: Prior Incomplete Jobs ───────────────────────────────────────
     ws_e = wb.create_sheet("Prior Incomplete Jobs")
-    _header_row(ws_e, ["Month", "Asset", "Service", "Status", "Est. Hours"], 1)
+    _header_row(ws_e, ["Month", "Asset", "Location", "Service", "Status", "Est. Hours"], 1)
     for i, row in enumerate(report_data["prior_incomplete"], 2):
         ws_e.cell(i, 1, row["month"])
         ws_e.cell(i, 2, row["asset_name"])
-        ws_e.cell(i, 3, row["service_title"])
-        ws_e.cell(i, 4, row["status"])
-        ws_e.cell(i, 5, row["estimated_hours"])
+        ws_e.cell(i, 3, row["location"])
+        ws_e.cell(i, 4, row["service_title"])
+        ws_e.cell(i, 5, row["status"])
+        ws_e.cell(i, 6, row["estimated_hours"])
     _auto_width(ws_e)
 
     buf = io.BytesIO()

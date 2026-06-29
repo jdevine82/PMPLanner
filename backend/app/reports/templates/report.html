@@ -105,11 +105,12 @@
   <div class="section-title">B &mdash; Scheduling Intervals &amp; Settings</div>
   {% if scheduling %}
   <table>
-    <thead><tr><th>Asset</th><th>Service Template</th><th>Frequency</th><th>Est. Hours</th><th>Next Due</th><th>Last Done</th></tr></thead>
+    <thead><tr><th>Asset</th><th>Location</th><th>Service Template</th><th>Frequency</th><th>Est. Hours</th><th>Next Due</th><th>Last Done</th></tr></thead>
     <tbody>
       {% for row in scheduling %}
       <tr>
         <td><strong>{{ row.asset_name }}</strong></td>
+        <td>{{ row.location }}</td>
         <td>{{ row.service_title }}</td>
         <td>{{ row.frequency }}</td>
         <td>{{ "%.2f"|format(row.estimated_hours) }}h</td>
@@ -127,12 +128,13 @@
   <div class="section-title">C &mdash; Completed &amp; Refused Service History</div>
   {% if history %}
   <table>
-    <thead><tr><th>Month</th><th>Asset</th><th>Service</th><th>Status</th><th>Actual Hours</th><th>Notes / Refusal Reason</th></tr></thead>
+    <thead><tr><th>Month</th><th>Asset</th><th>Location</th><th>Service</th><th>Status</th><th>Actual Hours</th><th>Notes / Refusal Reason</th></tr></thead>
     <tbody>
       {% for row in history %}
       <tr>
         <td>{{ row.month }}</td>
         <td>{{ row.asset_name }}</td>
+        <td>{{ row.location }}</td>
         <td>{{ row.service_title }}</td>
         <td>
           {% if row.status == "Refused by Customer" %}
@@ -157,12 +159,13 @@
   <div class="section-title">E &mdash; Prior Months &mdash; Incomplete Jobs</div>
   {% if prior_incomplete %}
   <table>
-    <thead><tr><th>Month</th><th>Asset</th><th>Service</th><th>Status</th><th>Est. Hours</th></tr></thead>
+    <thead><tr><th>Month</th><th>Asset</th><th>Location</th><th>Service</th><th>Status</th><th>Est. Hours</th></tr></thead>
     <tbody>
       {% for row in prior_incomplete %}
       <tr>
         <td><strong>{{ row.month }}</strong></td>
         <td>{{ row.asset_name }}</td>
+        <td>{{ row.location }}</td>
         <td>{{ row.service_title }}</td>
         <td><span class="badge-approved">{{ row.status }}</span></td>
         <td>{% if row.estimated_hours %}{{ "%.2f"|format(row.estimated_hours) }}h{% else %}—{% endif %}</td>
@@ -178,12 +181,13 @@
   <div class="section-title">D &mdash; Upcoming Maintenance Forecast (Next {{ forecast_months }} Months)</div>
   {% if forecast %}
   <table>
-    <thead><tr><th>Due Date</th><th>Asset</th><th>Service Template</th><th>Est. Hours</th></tr></thead>
+    <thead><tr><th>Due Date</th><th>Asset</th><th>Location</th><th>Service Template</th><th>Est. Hours</th></tr></thead>
     <tbody>
       {% for row in forecast %}
       <tr>
         <td><strong>{{ row.due_date }}</strong></td>
         <td>{{ row.asset_name }}</td>
+        <td>{{ row.location }}</td>
         <td>{{ row.service_title }}</td>
         <td>{{ "%.2f"|format(row.estimated_hours) }}h</td>
       </tr>

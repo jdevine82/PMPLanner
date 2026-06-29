@@ -11,6 +11,7 @@ class AssetCreate(BaseModel):
     serial_number: str | None = None
     model_number: str | None = None
     is_catch_all: bool = False
+    doc_url: str | None = None
 
 
 class AssetUpdate(BaseModel):
@@ -19,6 +20,7 @@ class AssetUpdate(BaseModel):
     serial_number: str | None = None
     model_number: str | None = None
     is_catch_all: bool | None = None
+    doc_url: str | None = None
 
 
 class AssetTransfer(BaseModel):
@@ -38,4 +40,5 @@ class AssetOut(BaseModel):
     serial_number: str | None
     model_number: str | None
     is_catch_all: bool
+    doc_url: str | None
     created_at: datetime
